@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS Sierra update packages from sucatalog.gz and build the installer PKG for it.
 #
-# Copyright (c) 2016 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.1 - Copyright (c) 2016 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 
 # CatalogURL for Developer Program Members
@@ -13,6 +13,12 @@
 #
 # CatalogURL for Regular Software Updates
 # https://swscan.apple.com/content/catalogs/others/index-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz
+
+#
+# You may need VolumeCheck() to return true (and thus skip checks)
+#
+export OS_INSTALL=1
+
 #
 # Target key copied from sucatalog.gz
 #
@@ -52,7 +58,7 @@ fi
 #
 # Get distribution file
 #
-curl "${url}${distribution}" -o "${distribution}"
+curl "${url}${distribution}" -o "${tmpDirectory}/${key}/${distribution}"
 
 #
 # Get target packages
@@ -62,7 +68,7 @@ curl "${url}${packages}" -o "${tmpDirectory}/${key}/#1"
 #
 # Create installed package
 #
-productbuild --distribution "${distribution}" --package-path "${key}" "${installerPackage}"
+productbuild --distribution "${tmpDirectory}/${key}/${distribution}" --package-path "${key}" "${installerPackage}"
 
 #
 # Launch the installer
