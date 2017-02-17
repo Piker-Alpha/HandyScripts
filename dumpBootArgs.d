@@ -9,7 +9,7 @@
  *          Version 1.09.0 (Mavericks OS X 10.9)
  *          Version 1.10.0 (Yosemite OS X 10.10)
  *          Version 1.11.0 (El Capitan OS X 10.11)
- *          Version 1.12.1 (Sierra MacOS 10.12)
+ *          Version 1.12.3 (Sierra MacOS 10.12)
  *
  * Run command: sudo dumpBootArgs.sh
  *
@@ -97,6 +97,7 @@ BEGIN
 	printf("PE_state.bootArgs.Video.v_resv[4]...................: 0x%x\n", self->boot_args->Video.v_resv[4]);
 	printf("PE_state.bootArgs.Video.v_resv[5]...................: 0x%x\n", self->boot_args->Video.v_resv[5]);
 	printf("PE_state.bootArgs.Video.v_resv[6]...................: 0x%x\n", self->boot_args->Video.v_resv[6]);
+	printf("PE_state.bootArgs.Video.v_baseAddr..................: 0x%x\n", self->boot_args->Video.v_baseAddr);
 	printf("\n");
 	printf("PE_state.bootArgs.efiRuntimeServicesVirtualPageStart: 0x%x\n", self->boot_args->efiRuntimeServicesVirtualPageStart);
 	printf("\n");
@@ -106,7 +107,7 @@ BEGIN
 	printf("PE_state.video.v_height.............................: 0x%x\n", self->video.v_height);
 	printf("PE_state.video.v_depth..............................: 0x%x\n", self->video.v_depth);
 	printf("PE_state.video.v_display............................: 0x%x\n", self->video.v_display);
-	printf("PE_state.video.v_pixelFormat........................: %x\n", self->video.v_pixelFormat[1]);
+	printf("PE_state.video.v_pixelFormat........................: %s\n", (self->video.v_pixelFormat[0] == 0) ? "NULL" : self->video.v_pixelFormat);
 	printf("PE_state.video.v_offset.............................: 0x%x\n", self->video.v_offset);
 	printf("PE_state.video.v_length.............................: 0x%x\n", self->video.v_length);
 	printf("PE_state.video.v_rotate.............................: 0x%x\n", self->video.v_rotate);
