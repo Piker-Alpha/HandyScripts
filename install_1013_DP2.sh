@@ -2,13 +2,15 @@
 #
 # Bash script to download macOS High Sierra update packages from sucatalog.gz and build the installer.pkg for it.
 #
-# version 1.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
 # 			- Creates a seedEnrollement.plist when missing.
 # 			- Volume picker for seedEnrollement.plist added.
 # 			- Added sudo to 'open installer.pkg' to remedy authorisation problems.
+# 			- Fix for volume names with a space in it. Thanks to:
+# 			- https://pikeralpha.wordpress.com/2017/06/22/script-to-upgrade-macos-high-sierra-dp1-to-dp2/#comment-10216)
 #
 
 # CatalogURL for Developer Program Members
@@ -33,9 +35,20 @@ export __OS_INSTALL=1
 let index=0
 
 #
+# Change additional shell optional behavior (expand unmatched names to a null string).
+#
+shopt -s nullglob
+
+#
+# Change to Volumes folder.
+#
+cd /Volumes
+
+#
 # Collect available volume names.
 #
-targetVolumes=($(ls /Volumes | sort))
+
+targetVolumes=(*)
 
 echo "\nAvailable target volumes:\n"
 
