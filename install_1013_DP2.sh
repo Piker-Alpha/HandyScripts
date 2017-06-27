@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS High Sierra update packages from sucatalog.gz and build the installer.pkg for it.
 #
-# version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
@@ -11,6 +11,8 @@
 # 			- Added sudo to 'open installer.pkg' to remedy authorisation problems.
 # 			- Fix for volume names with a space in it. Thanks to:
 # 			- https://pikeralpha.wordpress.com/2017/06/22/script-to-upgrade-macos-high-sierra-dp1-to-dp2/#comment-10216)
+# 			- Add file checks so that we only download the missing files.
+# 			- Polished up comments.
 #
 
 # CatalogURL for Developer Program Members
@@ -32,6 +34,14 @@
 #
 export __OS_INSTALL=1
 
+#
+# Personalization setting.
+#
+#export __OSIS_ENABLE_SECUREBOOT
+
+#
+# Initialisation of a variable.
+#
 let index=0
 
 #
@@ -45,16 +55,15 @@ shopt -s nullglob
 cd /Volumes
 
 #
-# Collect available volume names.
+# Collect available target volume names.
 #
-
 targetVolumes=(*)
 
 echo "\nAvailable target volumes:\n"
 
 for volume in "${targetVolumes[@]}"
   do
-    echo "[$index] $volume"
+    echo "[$index] ${volume}"
     let index++
 done
 
@@ -76,7 +85,7 @@ targetVolume="/Volumes/${targetVolumes[$volumeNumber]}"
 seedEnrollmentPlist="${targetVolume}/Users/Shared/.SeedEnrollment.plist"
 
 #
-# Write enrollement plist when missing.
+# Write enrollement plist when missing (seed program options: CustomerSeed, DeveloperSeed or PublicSeed).
 #
 if [ ! -e "${seedEnrollmentPlist}" ]
   then
@@ -91,40 +100,46 @@ if [ ! -e "${seedEnrollmentPlist}" ]
 fi
 
 #
-# Target key copied from sucatalog.gz
+# Target key copied from sucatalog.gz (think CatalogURL).
 #
 key="091-19061"
 
 #
-# tmpDirectory
+# Initialisation of a variable (our target folder).
 #
 tmpDirectory="/tmp"
 
 #
-# Name of target package
+# Name of target installer package
 #
 installerPackage="installer.pkg"
 
 #
-# URL copied from sucatalog.gz
+# URL copied from sucatalog.gz (think CatalogURL).
 #
-
 url="https://swdist.apple.com/content/downloads/45/42/${key}/d6evxbyr9ft25w3ighkmny2phj4sctm0hy/"
 
 #
-# Target distribution language
+# Target distribution language.
 #
 distribution="${key}.English.dist"
 
 #
-# Package names copied from sucatalog.gz
+# Target files copied from sucatalog.gz (think CatalogURL).
 #
-packages={"FirmwareUpdate.pkg","FullBundleUpdate.pkg","EmbeddedOSFirmware.pkg","macOSUpd10.13.pkg","macOSUpd10.13.RecoveryHDUpdate.pkg"}
+targetFiles=(
+FirmwareUpdate.pkg
+FullBundleUpdate.pkg
+EmbeddedOSFirmware.pkg
+macOSUpd10.13.pkg
+macOSUpd10.13.RecoveryHDUpdate.pkg
+)
+
 #
-# On a hackintosh we can skip: FirmwareUpdate.pkg and EmbeddedOSFirmware.pkg
-# but then you also need to remove them, manually, from the distribution file.
+# Note: On a hackintosh we can skip: FirmwareUpdate.pkg and EmbeddedOSFirmware.pkg
+#       but then you also need to remove them, manually, from the distribution file.
 #
-#packages={"FullBundleUpdate.pkg","macOSUpd10.13.pkg","macOSUpd10.13.RecoveryHDUpdate.pkg"}
+#targetFiles={"FullBundleUpdate.pkg","macOSUpd10.13.pkg","macOSUpd10.13.RecoveryHDUpdate.pkg"}
 
 if [ ! -d "${tmpDirectory}/${key}" ]
   then
@@ -134,7 +149,13 @@ fi
 #
 # Get distribution file
 #
-curl "${url}${distribution}" -o "${tmpDirectory}/${key}/${distribution}"
+if [ ! -e "${tmpDirectory}/${key}/${distribution}" ];
+  then
+    curl "${url}${distribution}" -o "${tmpDirectory}/${key}/${distribution}"
+  else
+    echo "File: ${distribution} already there, skipping download."
+fi
+
 
 #
 # Change to working directory (otherwise it will fail to locate the packages).
@@ -142,17 +163,32 @@ curl "${url}${distribution}" -o "${tmpDirectory}/${key}/${distribution}"
 cd "${tmpDirectory}/${key}"
 
 #
-# Get target packages
+# Reset index variable.
 #
-curl "${url}${packages}" -o "${tmpDirectory}/${key}/#1"
+let index=0
 
 #
-# Create installed package
+# Download target files.
+#
+for filename in "${targetFiles[@]}"
+  do
+    if [ ! -e "${tmpDirectory}/${key}/${filename}" ];
+      then
+        curl "${url}${filename}" -o "${tmpDirectory}/${key}/${filename}"
+      else
+        echo "File: ${filename} already there, skipping download."
+    fi
+
+    let index++
+  done
+
+#
+# Create installer package.
 #
 productbuild --distribution "${tmpDirectory}/${key}/${distribution}" --package-path "${tmpDirectory}/${key}" "${installerPackage}"
 
 #
-# Launch the installer
+# Launch the installer.
 #
 if [ -e "${tmpDirectory}/${key}/${installerPackage}" ]
   then
