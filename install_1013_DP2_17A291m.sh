@@ -133,7 +133,7 @@ FirmwareUpdate.pkg
 FullBundleUpdate.pkg
 EmbeddedOSFirmware.pkg
 macOS10.13Seed2Upd.pkg
-RecoveryHDUpdate.pkg
+macOS10.13Seed2Upd.RecoveryHDUpdate.pkg
 )
 
 #
