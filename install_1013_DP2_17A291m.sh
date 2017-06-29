@@ -134,7 +134,7 @@ FullBundleUpdate.pkg
 EmbeddedOSFirmware.pkg
 macOS10.13Seed2Upd.pkg
 RecoveryHDUpdate.pkg
-}
+)
 
 #
 # Note: On a hackintosh we can skip: FirmwareUpdate.pkg and EmbeddedOSFirmware.pkg
