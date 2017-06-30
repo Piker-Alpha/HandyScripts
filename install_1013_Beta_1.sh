@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS High Sierra installation packages from sucatalog.gz and build the installer PKG for it.
 #
-# Version 1.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
@@ -15,6 +15,9 @@
 # 			- Polished up comments.
 # 			- Checks added to see if copy_dmg (a script inside RecoveryHDMetaDmg.pkg) completed.
 # 			- Now calling the installer.app with -pkg -target instead of open to prevent failures.
+# 			- Fixed path to distribution file.
+# 			- Checks for missing files added.
+# 			- Updated version number (now v1.6).
 #
 
 # CatalogURL for Developer Program Members
@@ -82,6 +85,14 @@ targetVolume="/Volumes/${targetVolumes[$volumeNumber]}"
 seedEnrollmentPlist="${targetVolume}/Users/Shared/.SeedEnrollment.plist"
 
 #
+# Path to enrollment plist for 10.9.
+#
+if [ $(/usr/bin/sw_vers -productVersion | /usr/bin/cut -d '.' -f 1,2) == "10.9" ];
+  then
+    seedEnrollmentPlist="$3/Library/Application Support/App Store/.SeedEnrollment.plist"
+fi
+
+#
 # Write enrollement plist when missing (seed program options: CustomerSeed, DeveloperSeed or PublicSeed).
 #
 if [ ! -e "${seedEnrollmentPlist}" ]
@@ -104,7 +115,7 @@ fi
 #
 # Target key copied from sucatalog.gz (think CatalogURL).
 #
-key="091-15725"
+key="091-21165"
 
 #
 # Initialisation of a variable (our target folder).
@@ -119,8 +130,7 @@ installerPackage="installer.pkg"
 #
 # URL copied from sucatalog.gz
 #
-
-url="https://swdist.apple.com/content/downloads/53/35/${key}/rr81nop9bl0ftqu4ulf1vfu92ch5nt6za6/"
+url="https://swdist.apple.com/content/downloads/12/09/${key}/vumiq9mhdyn2lr8lg1oc1w2n8wxoinwjsh/"
 
 #
 # Target distribution language.
@@ -132,15 +142,15 @@ distribution="${key}.English.dist"
 #
 targetFiles=(
 RecoveryHDMetaDmg.pkg
-AppleDiagnostics.dmg
-BaseSystem.chunklist
 BaseSystem.dmg
+BaseSystem.chunklist
 InstallESDDmg.pkg
-InstallInfo.plist
-AppleDiagnostics.chunklist
 InstallESDDmg.chunklist
-InstallOSAuto.pkg
+AppleDiagnostics.dmg
+AppleDiagnostics.chunklist
+InstallInfo.plist
 OSInstall.mpkg
+InstallAssistantAuto.pkg
 )
 
 #
@@ -152,7 +162,7 @@ if [ ! -d "${tmpDirectory}/${key}" ]
 fi
 
 #
-# Download distribution file
+# Download distribution file.
 #
 if [ ! -e "${tmpDirectory}/${key}/${distribution}" ];
   then
@@ -160,11 +170,11 @@ if [ ! -e "${tmpDirectory}/${key}/${distribution}" ];
     #
     # Remove root only restriction/allow us to install on any target volume.
     #
-    cat "${tmpDirectory}/${key}/${distribution}" | sed -e 's|rootVolumeOnly="true"|allow-external-scripts="true"|' > "new.dist"
+    cat "${tmpDirectory}/${key}/${distribution}" | sed -e 's|rootVolumeOnly="true"|allow-external-scripts="true"|' > "${tmpDirectory}/${key}/new.dist"
 
-    if [ -e "new.dist" ]
+    if [ -e "${tmpDirectory}/${key}/new.dist" ]
       then
-        mv "new.dist" "${distribution}"
+        mv "${tmpDirectory}/${key}/new.dist" "${tmpDirectory}/${key}/${distribution}"
     fi
   else
     echo "File: ${distribution} already there, skipping download."
@@ -196,7 +206,7 @@ for filename in "${targetFiles[@]}"
   done
 
 #
-#
+# OSX_10_13_IncompatibleAppList.pkg
 #
 key2="091-05077"
 
@@ -209,6 +219,31 @@ url="http://swcdn.apple.com/content/downloads/62/30/${key2}/8243xxpqrcv69hakbdhx
 #
 #
 filename="OSX_10_13_IncompatibleAppList.pkg"
+
+#
+#
+#
+if [ ! -e "${tmpDirectory}/${key}/${filename}" ];
+  then
+    curl "${url}${filename}" -o "${tmpDirectory}/${key}/${filename}"
+  else
+    echo "File: ${filename} already there, skipping download."
+fi
+
+#
+# GatekeeperConfigData.pkg
+#
+key2="091-20697"
+
+#
+#
+#
+url="http://swcdn.apple.com/content/downloads/06/57/${key2}/dizlysxx81f4bc5v5jceelvzf8yu0yeh3l/"
+
+#
+#
+#
+filename="GatekeeperConfigData.pkg"
 
 #
 #
@@ -238,20 +273,30 @@ fi
 #
 # Note: This may fail when you install the package from another volume (giving the installer the wrong mount point).
 #
-if [ -d "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport" ]
+if [ -d "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport" ]
   then
     #
     # Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 Beta.app needs?
     #
-    if [ ! -e "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg" ]
+    if [ ! -e "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg" ]
       then
         #
         # Without this we might have end up with only InstallDMG.dmg and InstallInfo.plist
         #
-        sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.dmg" "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport/"
-        sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.chunklist" "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport/"
-        sudo cp "${tmpDirectory}/${key}/BaseSystem.dmg" "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport/"
-        sudo cp "${tmpDirectory}/${key}/BaseSystem.chunklist" "${targetVolume}/Applications/Install macOS 10.13 Beta.app/Contents/SharedSupport/"
+        sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.dmg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+        sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.chunklist" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+        sudo cp "${tmpDirectory}/${key}/BaseSystem.dmg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+        sudo cp "${tmpDirectory}/${key}/BaseSystem.chunklist" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+    fi
+    #
+    # Is OSInstall.mpkg copied from "/tmp/${key}"?
+    #
+    if [ ! -e "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/OSInstall.mpkg" ]
+      then
+        #
+        # No. Copy it (or you end up with a broken installer).
+        #
+        sudo cp "${tmpDirectory}/${key}/OSInstall.mpkg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
     fi
 fi
 
