@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS High Sierra installation packages from sucatalog.gz and build the installer.pkg for it.
 #
-# version 1.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.8 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
@@ -21,6 +21,8 @@
 # 			- Removing unused (initialisation of a) variable.
 # 			- Improved verbose output.
 # 			- Updated version number (now v1.7).
+# 			- Fix installer breakage.
+# 			- Updated version number (now v1.8).
 #
 
 # CatalogURL for Developer Program Members
@@ -149,10 +151,10 @@ AppleDiagnostics.dmg
 AppleDiagnostics.chunklist
 BaseSystem.dmg
 BaseSystem.chunklist
-RecoveryHDMetaDmg.pkg
 InstallESDDmg.pkg
 InstallESDDmg.chunklist
 InstallAssistantAuto.pkg
+RecoveryHDMetaDmg.pkg
 InstallInfo.plist
 OSInstall.mpkg
 )
@@ -241,28 +243,23 @@ if [ -d "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Content
     if [ ! -e "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg" ]
       then
         #
-        # Without this we might have end up with only (a broken) copy of InstallDMG.dmg and InstallInfo.plist
+        # Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
         #
         echo "Copying: InstallESDDmg.pkg to the target location ..."
-        sudo cp "${tmpDirectory}/${key}/InstallESDDmg.pkg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+        sudo cp "${tmpDirectory}/${key}/InstallESDDmg.pkg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg"
+        #
+        # Without this step we end up without AppleDiagnostics.[dmg/chunklist].
+        #
         echo "Copying: AppleDiagnostics.dmg to the target location ..."
         sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.dmg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
         echo "Copying: AppleDiagnostics.chunklist to the target location ..."
         sudo cp "${tmpDirectory}/${key}/AppleDiagnostics.chunklist" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
+        #
+        # Without this step we end up without BaseSystem.[dmg/chunklist].
+        #
         echo "Copying: BaseSystem.dmg to the target location ..."
         sudo cp "${tmpDirectory}/${key}/BaseSystem.dmg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
         echo "Copying: BaseSystem.chunklist to the target location ..."
         sudo cp "${tmpDirectory}/${key}/BaseSystem.chunklist" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
-    fi
-    #
-    # Is OSInstall.mpkg copied from "/tmp/${key}"?
-    #
-    if [ ! -e "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/OSInstall.mpkg" ]
-      then
-        #
-        # No. Copy it (or you end up with a broken installer).
-        #
-        echo "Copying: OSInstall.mpkg to target location ..."
-        sudo cp "${tmpDirectory}/${key}/OSInstall.mpkg" "${targetVolume}/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/"
     fi
 fi
