@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS High Sierra update packages from sucatalog.gz and build the installer.pkg for it.
 #
-# version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
@@ -16,6 +16,9 @@
 # 			- Changed key, salt, target files and version (now v1.5).
 # 			- Changed key, salt, target files and version (now v1.6).
 # 			- Opt out for firmware added.
+# 			- Catch installer failure.
+# 			- Improved verbose output.
+# 			- Changed version number (now v1.7).
 #
 
 # CatalogURL for Developer Program Members
@@ -88,6 +91,17 @@ read -p "Select a target volume for the boot file: " volumeNumber
 targetVolume="/Volumes/${targetVolumes[$volumeNumber]}"
 
 #
+# Catching an installer failure.
+#
+checksum=$(shasum "${targetVolume}/System/Library/Frameworks/VideoToolbox.framework/Versions/A/VideoToolbox" | awk '{ print $1 }')
+
+if [[ "${checksum}" != "3bebbbdb3ef75b355cdae1c0badc4da52c2a8dce" ]];
+  then
+    printf "Error: Target drive does NOT fit the expected version of High Sierra. Exiting ...\nDone."
+    exit -1
+fi
+
+#
 # Path to enrollment plist.
 #
 seedEnrollmentPlist="${targetVolume}/Users/Shared/.SeedEnrollment.plist"
@@ -157,6 +171,7 @@ fi
 #
 if [ ! -e "${tmpDirectory}/${key}/${distribution}" ];
   then
+    echo "Downloading: ${distribution} ..."
     curl "${url}${distribution}" -o "${tmpDirectory}/${key}/${distribution}"
   else
     echo "File: ${distribution} already there, skipping download."
@@ -179,6 +194,7 @@ for filename in "${targetFiles[@]}"
   do
     if [ ! -e "${tmpDirectory}/${key}/${filename}" ];
       then
+        echo "Downloading: ${filename} ..."
         curl "${url}${filename}" -o "${tmpDirectory}/${key}/${filename}"
       else
         echo "File: ${filename} already there, skipping download."
@@ -190,6 +206,7 @@ for filename in "${targetFiles[@]}"
 #
 # Create installer package.
 #
+echo "Creating installer.pkg ..."
 productbuild --distribution "${tmpDirectory}/${key}/${distribution}" --package-path "${tmpDirectory}/${key}" "${installerPackage}"
 
 #
@@ -197,6 +214,6 @@ productbuild --distribution "${tmpDirectory}/${key}/${distribution}" --package-p
 #
 if [ -e "${tmpDirectory}/${key}/${installerPackage}" ]
   then
-#   sudo open "${tmpDirectory}/${key}/${installerPackage}"
+    echo "Running installer ..."
     sudo /usr/sbin/installer -pkg "${tmpDirectory}/${key}/${installerPackage}" -target "${targetVolume}"
 fi
