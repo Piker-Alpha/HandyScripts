@@ -2,7 +2,7 @@
 #
 # Bash script to download macOS High Sierra installation packages from sucatalog.gz and build the installer.pkg for it.
 #
-# version 1.9 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 2.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #
@@ -25,6 +25,8 @@
 # 			- Updated version number (now v1.8).
 # 			- Opt out for firmware added.
 # 			- Changed version number (now v1.9).
+# 			- Opt in/out for APFS conversion added.
+# 			- Changed version number (now v2.0).
 #
 
 # CatalogURL for Developer Program Members
@@ -47,9 +49,21 @@
 export __OS_INSTALL=1
 
 #
-# Skip firmware update.
+# Skip firmware update (OSInstaller).
 #
 export __FIRMWARE_UPDATE_OPTOUT
+
+#
+# Do not convert target HFS volume to APFS (OSInstaller).
+#
+export __APFS_OPTOUT=1
+
+#
+# Convert target HFS volume to APFS (OSInstaller).
+#
+# Note: This appears to be the default now.
+#
+#export __APFS_OPTIN=1
 
 #
 # Personalization setting.
