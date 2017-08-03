@@ -2,12 +2,14 @@
 #
 # Bash script to check APFS conversion settings in macOS Install Data.
 #
-# version 1.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 # 			- Add comments.
 # 			- Automatic target volume selection.
+# 			- Check for PlistBuddy added (triggers xcode-select --install).
 #
+# Note:		run with 'sudo' or changes won't be made!
 
 #
 # Initialisation of a variable.
@@ -68,6 +70,17 @@ filePath="${targetVolume}/macOS Install Data"
 # Path to PlistBuddy.
 #
 plistBuddy="/usr/libexec/PlistBuddy"
+
+#
+# Check for PlistBuddy (part of developer tools).
+#
+if [ ! -e "${plistBuddy}" ];
+  then
+    #
+    # Install developer tools.
+    #
+    xcode-select --install
+fi
 
 #
 # First target file to check.
