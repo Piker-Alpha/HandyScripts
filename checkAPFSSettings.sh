@@ -2,12 +2,13 @@
 #
 # Bash script to check APFS conversion settings in macOS Install Data.
 #
-# version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 # 			- Add comments.
 # 			- Automatic target volume selection.
 # 			- Check for PlistBuddy added (triggers xcode-select --install).
+# 			- Fix targetFile(s).
 #
 # Note:		run with 'sudo' or changes won't be made!
 
@@ -85,7 +86,7 @@ fi
 #
 # First target file to check.
 #
-targetFile="${targetVolume}/macOS Install Data/Locked Files/minstallconfig.xml"
+targetFile="${targetVolume}/macOS Install Data/minstallconfig.xml"
 
 #
 # Check if file exists.
@@ -103,7 +104,7 @@ fi
 #
 # Second target file to check.
 #
-targetFile="${targetVolume}/macOS Install Data/Locked Files/OSInstallAttr.plist"
+targetFile="${targetVolume}/macOS Install Data/OSInstallAttr.plist"
 
 #
 # Check if file exists.
