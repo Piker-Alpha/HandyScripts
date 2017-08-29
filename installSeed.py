@@ -3,13 +3,14 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
 #          - target directory check added (Pike R. Alpha, August 2017)
 #          - filesize check added
 #          - renamed script
+#          - don't try to remove the .dist file if it isn't there.
 #
 
 import os
@@ -186,7 +187,10 @@ for key in products:
 						distributionID = key + '.' + languageSelector + '.dist'
 						distributionFile = os.path.join(targetPath, distributionID)
 						#print distributionFile
-						os.remove(distributionFile)
+						
+						if os.path.exists(distributionFile):
+							os.remove(distributionFile)
+						
 						file = open(distributionFile, 'w')
 						
 						for chunk in request.iter_content(1024):
