@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
@@ -11,6 +11,7 @@
 #          - filesize check added
 #          - renamed script
 #          - don't try to remove the .dist file if it isn't there.
+#          - copy InstallESDDmg.pkg to /Applications/Install macOS High Sierra Beta.app/Content/SharedSupport/InstallESD.dmg
 #
 
 import os
@@ -229,7 +230,7 @@ for key in products:
 						#print sourceFile
 						sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport")
 						#print targetPath
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
 						#
 						# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
 						#
