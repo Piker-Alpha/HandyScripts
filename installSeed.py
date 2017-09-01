@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
@@ -12,6 +12,8 @@
 #          - renamed script
 #          - don't try to remove the .dist file if it isn't there.
 #          - copy InstallESDDmg.pkg to /Applications/Install macOS High Sierra Beta.app/Content/SharedSupport/InstallESD.dmg
+#          - set environment variable.
+#          - use sudo and path for productbuild.
 #
 
 import os
@@ -21,6 +23,8 @@ import requests
 import subprocess
 
 from os.path import basename
+
+os.environ['__OS_INSTALL'] = "1"
 
 #
 #
@@ -203,7 +207,7 @@ for key in products:
 				print 'Creating %s ...' % installerPackage
 				installerPkg = os.path.join(targetPath, installerPackage)
 				#print installerPkg
-				subprocess.call(["productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
+				subprocess.call(["sudo", "/usr/bin/productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
 
 				#
 				# Launch the installer.
