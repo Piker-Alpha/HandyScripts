@@ -2,13 +2,14 @@
 #
 # Bash script to check APFS conversion settings in macOS Install Data.
 #
-# version 1.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# version 1.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 # 			- Add comments.
 # 			- Automatic target volume selection.
 # 			- Check for PlistBuddy added (triggers xcode-select --install).
 # 			- Fix targetFile(s).
+# 			- Show targetVolume(s).
 #
 # Note:		run with 'sudo' or changes won't be made!
 
@@ -51,6 +52,7 @@ for volume in "${targetVolumes[@]}"
         # Yes. Use it as our target volume (there should only be one).
         #
         targetVolume="/Volumes/${volume}"
+        printf "Target Volume: ${targetVolume}\n" 
         #
         # Done.
         #
