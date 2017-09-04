@@ -3,17 +3,33 @@
 #
 # Script (makeInstallSeedScript.py) to create a bash script that downloads the latest seed.
 #
-# Version 1.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added.
 #          - initial refactoring done.
+#          - download template file when missing.
 #
 
 import os
 import plistlib
 import requests
 import fileinput
+
+#
+# Script version info.
+#
+scriptVersion=1.2
+
+#
+# GitHub branch to pull data from (master or Beta).
+#
+gitHubBranch="master"
+
+#
+# Github download URL.
+#
+gitHubContentURL="https://raw.githubusercontent.com/Piker-Alpha/HandyScripts"
 
 #
 # We should show a list with supported languages.
@@ -28,6 +44,18 @@ seedProgramData = {
  "PublicSeed":"index-10.13beta-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
  "CustomerSeed":"index-10.13customerseed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
+
+def downloadTemplate(fileName):
+	global gitHubContentURL
+	global gitHubBranch
+	gitHubContentURL = os.path.join(gitHubContentURL, gitHubBranch)
+	templateURL = os.path.join(gitHubContentURL, fileName)
+	request = requests.get(templateURL, stream=True, headers='')
+	file = open(fileName, 'w')
+	
+	for chunk in request.iter_content(1024):
+		file.write(chunk)
+	file.close()
 
 def downloadDistributionFile(product):
 	if 'Distributions' in product:
@@ -67,8 +95,12 @@ def writeScript(key, url):
 	salt = url_parts[8]
 	buildID = getBuildID()
 	scriptName = "installSeed-" + buildID + ".sh"
+	templateFileName = "installScriptTemplate.sh"
 	
-	with open("installScriptTemplate.sh", "r") as file:
+	if not os.path.exists(templateFileName):
+		downloadTemplate(templateFileName)
+
+	with open(templateFileName, "r") as file:
 		filedata = file.read()
 		filedata = filedata.replace("key=\"*\"", "key=\"" + key + "\"")
 		filedata = filedata.replace("version=\"*\"", "version=\"" + version + "\"")
