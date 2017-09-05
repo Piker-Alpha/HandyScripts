@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.8 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
@@ -14,6 +14,8 @@
 #          - copy InstallESDDmg.pkg to /Applications/Install macOS High Sierra Beta.app/Content/SharedSupport/InstallESD.dmg
 #          - set environment variable.
 #          - use sudo and path for productbuild.
+#          - internationalisation (i18n) support added (downloads the right dictionary).
+#          - initial refactoring done.
 #
 
 import os
@@ -23,13 +25,14 @@ import requests
 import subprocess
 
 from os.path import basename
+from Foundation import NSLocale
 
 os.environ['__OS_INSTALL'] = "1"
 
 #
+# Script version info.
 #
-#
-languageSelector = 'English'
+scriptVersion=1.3
 
 #
 # Setup seed program data.
@@ -39,6 +42,102 @@ seedProgramData = {
  "PublicSeed":"index-10.13beta-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
  "CustomerSeed":"index-10.13customerseed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
+
+#
+# International Components for Unicode (http://www.localeplanet.com/icu/)
+#
+icuData = {
+ "el":"el",			#Greek
+ "vi":"vi",			#English (U.S. Virgin Islands)
+ "ca":"cs",			#Aghem (Cameroon)
+ "ar":"ar",			#Arabic
+ "cs":"cs",			#Czech
+ "id":"id",			#Indonesian
+ "ru":"ru",			#Russian
+ "no":"no",			#Norwegian
+ "tr":"tr",			#Turkish
+ "th":"th",			#Thai
+ "he":"he",			#Hebrew
+ "pt":"pt",			#Portuguese
+ "pl":"pl",			#Polish
+ "uk":"uk",			#Ukrainian
+ "hr":"hr",			#Croatian
+ "hu":"hu",			#Hungarian
+ "hi":"hi",			#Hindi
+ "fi":"fi",			#Finnish
+ "da":"da",			#Danish
+ "ro":"rp",			#Romanian
+ "ko":"ko",			#Korean
+ "sv":"sv",			#Swedish
+ "sk":"sk",			#Slovak
+ "ms":"ms",			#Malay
+ "en":"English",	#English
+ "ja":"Japanese",	#Japanese
+ "nl":"Dutch",		#Dutch
+ "fr":"French",		#French
+ "it":"Italian",	#Italian
+ "de":"German",		#German
+ "es":"Spanish",	#Spanish
+ "es_419":"es_419",	#Latin American Spanish
+ "zh_TW":"zh_TW",	#Chinese (Traditional, Taiwan)
+ "zh_CN":"zh_CN",	#Chinese (Simplified, China, Hong Kong, Macau and Singapore)
+ "pt":"pt",			#Portuguese (Portugal)
+ "pt_PT":"pt_PT"	#Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+}
+
+def getICUName(id):
+	return icuData.get(id, icuData['en'])
+
+def selectLanguage():
+	locale = NSLocale.currentLocale()
+	languageCode = NSLocale.languageCode(locale)
+	id = languageCode
+	countryCode = NSLocale.countryCode(locale)
+	localeIdentifier = NSLocale.localeIdentifier(locale)
+	#
+	# Special cases for Apple's SU.
+	#
+	if languageCode == "pt":
+		if localeIdentifier == "pt_PT":
+			id = localeIdentifier
+		else:
+			id = languageCode
+	elif languageCode == "es":
+		if localeIdentifier == "es_419":
+			id = localeIdentifier
+		else:
+			id = languageCode
+	elif languageCode == "zh":
+		if localeIdentifier == "zh_TW":
+			id = localeIdentifier
+		else:
+			id = "zh_CN"
+
+	return getICUName(id)
+
+def downloadDistributionFile(product):
+	if 'Distributions' in product:
+		distributions = product['Distributions']
+		
+		languageSelector = selectLanguage()
+		
+		if distributions[languageSelector]:
+			distributionURL = distributions.get(languageSelector)
+			request = requests.get(distributionURL, stream=True, headers='')
+			distributionID = key + '.' + languageSelector + '.dist'
+			distributionFile = os.path.join(targetPath, distributionID)
+			print 'Downloading: ' + distributionID + ' ...'
+			
+			if os.path.exists(distributionFile):
+				os.remove(distributionFile)
+			
+			file = open(distributionFile, 'w')
+			
+			for chunk in request.iter_content(1024):
+				file.write(chunk)
+			file.close()
+				
+		return distributionFile
 
 #
 # Name of target installer package.
@@ -182,25 +281,7 @@ for key in products:
 				#
 				#
 				#
-				if 'Distributions' in product:
-					distributions = product['Distributions']
-					
-					if distributions[languageSelector]:
-						distributionURL = distributions.get(languageSelector)
-						#print distributionURL
-						request = requests.get(distributionURL, stream=True, headers='')
-						distributionID = key + '.' + languageSelector + '.dist'
-						distributionFile = os.path.join(targetPath, distributionID)
-						#print distributionFile
-						
-						if os.path.exists(distributionFile):
-							os.remove(distributionFile)
-						
-						file = open(distributionFile, 'w')
-						
-						for chunk in request.iter_content(1024):
-							file.write(chunk)
-						file.close()
+				distributionFile = downloadDistributionFile(product)
 				#
 				# Create installer package.
 				#
