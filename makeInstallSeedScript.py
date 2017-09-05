@@ -3,12 +3,13 @@
 #
 # Script (makeInstallSeedScript.py) to create a bash script that downloads the latest seed.
 #
-# Version 1.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added.
 #          - initial refactoring done.
 #          - download template file when missing.
+#          - internationalisation (i18n) support added (downloads the right dictionary).
 #
 
 import os
@@ -16,10 +17,12 @@ import plistlib
 import requests
 import fileinput
 
+from Foundation import NSLocale
+
 #
 # Script version info.
 #
-scriptVersion=1.2
+scriptVersion=1.3
 
 #
 # GitHub branch to pull data from (master or Beta).
@@ -44,6 +47,78 @@ seedProgramData = {
  "PublicSeed":"index-10.13beta-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
  "CustomerSeed":"index-10.13customerseed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
+	
+#
+# International Components for Unicode (http://www.localeplanet.com/icu/)
+#
+icuData = {
+ "el":"el",			#Greek
+ "vi":"vi",			#English (U.S. Virgin Islands)
+ "ca":"cs",			#Aghem (Cameroon)
+ "ar":"ar",			#Arabic
+ "cs":"cs",			#Czech
+ "id":"id",			#Indonesian
+ "ru":"ru",			#Russian
+ "no":"no",			#Norwegian
+ "tr":"tr",			#Turkish
+ "th":"th",			#Thai
+ "he":"he",			#Hebrew
+ "pt":"pt",			#Portuguese
+ "pl":"pl",			#Polish
+ "uk":"uk",			#Ukrainian
+ "hr":"hr",			#Croatian
+ "hu":"hu",			#Hungarian
+ "hi":"hi",			#Hindi
+ "fi":"fi",			#Finnish
+ "da":"da",			#Danish
+ "ro":"rp",			#Romanian
+ "ko":"ko",			#Korean
+ "sv":"sv",			#Swedish
+ "sk":"sk",			#Slovak
+ "ms":"ms",			#Malay
+ "en":"English",	#English
+ "ja":"Japanese",	#Japanese
+ "nl":"Dutch",		#Dutch
+ "fr":"French",		#French
+ "it":"Italian",	#Italian
+ "de":"German",		#German
+ "es":"Spanish",	#Spanish
+ "es_419":"es_419",	#Latin American Spanish
+ "zh_TW":"zh_TW",	#Chinese (Traditional, Taiwan)
+ "zh_CN":"zh_CN",	#Chinese (Simplified, China, Hong Kong, Macau and Singapore)
+ "pt":"pt",			#Portuguese (Portugal)
+ "pt_PT":"pt_PT"	#Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+}
+
+def getICUName(id):
+	return icuData.get(id, icuData['en'])
+
+def selectLanguage():
+	locale = NSLocale.currentLocale()
+	languageCode = NSLocale.languageCode(locale)
+	id = languageCode
+	countryCode = NSLocale.countryCode(locale)
+	localeIdentifier = NSLocale.localeIdentifier(locale)
+	#
+	# Special cases for Apple SU.
+	#
+	if languageCode == "pt":
+		if localeIdentifier == "pt_PT":
+			id = localeIdentifier
+		else:
+			id = languageCode
+	elif languageCode == "es":
+		if localeIdentifier == "es_419":
+			id = localeIdentifier
+		else:
+			id = languageCode
+	elif languageCode == "zh":
+		if localeIdentifier == "zh_TW":
+			id = localeIdentifier
+		else:
+			id = "zh_CN"
+
+	return getICUName(id)
 
 def downloadTemplate(fileName):
 	global gitHubContentURL
@@ -60,6 +135,8 @@ def downloadTemplate(fileName):
 def downloadDistributionFile(product):
 	if 'Distributions' in product:
 		distributions = product['Distributions']
+		
+		languageSelector = selectLanguage()
 		
 		if distributions[languageSelector]:
 			distributionURL = distributions.get(languageSelector)
