@@ -83,8 +83,8 @@ icuData = {
  "es_419":"es_419", #Latin American Spanish
  "zh_TW":"zh_TW",   #Chinese (Traditional, Taiwan)
  "zh_CN":"zh_CN",   #Chinese (Simplified, China, Hong Kong, Macau and Singapore)
- "pt":"pt",         #Portuguese (Portugal)
- "pt_PT":"pt_PT"    #Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+ "pt":"pt",         #Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+ "pt_PT":"pt_PT"    #Portuguese (Portugal)
 }
 
 def getICUName(id):
