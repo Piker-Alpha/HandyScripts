@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.8 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.9 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
@@ -16,6 +16,8 @@
 #          - use sudo and path for productbuild.
 #          - internationalisation (i18n) support added (downloads the right dictionary).
 #          - initial refactoring done.
+#          - minor cleanups.
+#          - version number error fixed.
 #
 
 import os
@@ -32,7 +34,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=1.3
+scriptVersion=1.9
 
 #
 # Setup seed program data.
@@ -47,42 +49,42 @@ seedProgramData = {
 # International Components for Unicode (http://www.localeplanet.com/icu/)
 #
 icuData = {
- "el":"el",			#Greek
- "vi":"vi",			#English (U.S. Virgin Islands)
- "ca":"cs",			#Aghem (Cameroon)
- "ar":"ar",			#Arabic
- "cs":"cs",			#Czech
- "id":"id",			#Indonesian
- "ru":"ru",			#Russian
- "no":"no",			#Norwegian
- "tr":"tr",			#Turkish
- "th":"th",			#Thai
- "he":"he",			#Hebrew
- "pt":"pt",			#Portuguese
- "pl":"pl",			#Polish
- "uk":"uk",			#Ukrainian
- "hr":"hr",			#Croatian
- "hu":"hu",			#Hungarian
- "hi":"hi",			#Hindi
- "fi":"fi",			#Finnish
- "da":"da",			#Danish
- "ro":"rp",			#Romanian
- "ko":"ko",			#Korean
- "sv":"sv",			#Swedish
- "sk":"sk",			#Slovak
- "ms":"ms",			#Malay
- "en":"English",	#English
- "ja":"Japanese",	#Japanese
- "nl":"Dutch",		#Dutch
- "fr":"French",		#French
- "it":"Italian",	#Italian
- "de":"German",		#German
- "es":"Spanish",	#Spanish
- "es_419":"es_419",	#Latin American Spanish
- "zh_TW":"zh_TW",	#Chinese (Traditional, Taiwan)
- "zh_CN":"zh_CN",	#Chinese (Simplified, China, Hong Kong, Macau and Singapore)
- "pt":"pt",			#Portuguese (Portugal)
- "pt_PT":"pt_PT"	#Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+ "el":"el",         #Greek
+ "vi":"vi",         #English (U.S. Virgin Islands)
+ "ca":"cs",         #Aghem (Cameroon)
+ "ar":"ar",         #Arabic
+ "cs":"cs",         #Czech
+ "id":"id",         #Indonesian
+ "ru":"ru",         #Russian
+ "no":"no",         #Norwegian
+ "tr":"tr",         #Turkish
+ "th":"th",         #Thai
+ "he":"he",         #Hebrew
+ "pt":"pt",         #Portuguese
+ "pl":"pl",         #Polish
+ "uk":"uk",         #Ukrainian
+ "hr":"hr",         #Croatian
+ "hu":"hu",         #Hungarian
+ "hi":"hi",         #Hindi
+ "fi":"fi",         #Finnish
+ "da":"da",         #Danish
+ "ro":"rp",         #Romanian
+ "ko":"ko",         #Korean
+ "sv":"sv",         #Swedish
+ "sk":"sk",         #Slovak
+ "ms":"ms",         #Malay
+ "en":"English",    #English
+ "ja":"Japanese",   #Japanese
+ "nl":"Dutch",      #Dutch
+ "fr":"French",     #French
+ "it":"Italian",    #Italian
+ "de":"German",     #German
+ "es":"Spanish",    #Spanish
+ "es_419":"es_419", #Latin American Spanish
+ "zh_TW":"zh_TW",   #Chinese (Traditional, Taiwan)
+ "zh_CN":"zh_CN",   #Chinese (Simplified, China, Hong Kong, Macau and Singapore)
+ "pt":"pt",         #Portuguese (Portugal)
+ "pt_PT":"pt_PT"    #Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
 }
 
 def getICUName(id):
@@ -97,16 +99,10 @@ def selectLanguage():
 	#
 	# Special cases for Apple's SU.
 	#
-	if languageCode == "pt":
-		if localeIdentifier == "pt_PT":
-			id = localeIdentifier
-		else:
-			id = languageCode
-	elif languageCode == "es":
-		if localeIdentifier == "es_419":
-			id = localeIdentifier
-		else:
-			id = languageCode
+	if languageCode == "pt" and localeIdentifier == "pt_PT":
+		id = localeIdentifier
+	elif languageCode == "es" and localeIdentifier == "es_419":
+		id = localeIdentifier
 	elif languageCode == "zh":
 		if localeIdentifier == "zh_TW":
 			id = localeIdentifier
