@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 1.9 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added
@@ -18,13 +18,24 @@
 #          - initial refactoring done.
 #          - minor cleanups.
 #          - version number error fixed.
+#          - graceful exit with instructions to install pip/request module.
 #
 
 import os
+import sys
 import glob
 import plistlib
-import requests
 import subprocess
+
+try:
+	import requests
+except ImportError:
+	from os.path import isfile
+
+	if not isfile("/usr/local/bin/pip"):
+		sys.exit("""Run 'sudo easy_install pip' to install the Python Package Manager.""")
+	else:
+		sys.exit("""Run 'sudo pip install requests' to install a required module.""")
 
 from os.path import basename
 from Foundation import NSLocale
@@ -34,7 +45,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=1.9
+scriptVersion=2.0
 
 #
 # Setup seed program data.
