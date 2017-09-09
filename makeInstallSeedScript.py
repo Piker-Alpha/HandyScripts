@@ -3,7 +3,7 @@
 #
 # Script (makeInstallSeedScript.py) to create a bash script that downloads the latest seed.
 #
-# Version 1.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added.
@@ -12,6 +12,7 @@
 #          - internationalisation (i18n) support added (downloads the right dictionary).
 #          - indentation and comment errors fixed, superfluous code removed.
 #          - graceful exit with instructions to install pip/request module.
+#          - now using a generator object to get the buildID
 #
 
 import os
@@ -34,7 +35,7 @@ from Foundation import NSLocale
 #
 # Script version info.
 #
-scriptVersion=1.5
+scriptVersion=1.6
 
 #
 # GitHub branch to pull data from (master or Beta).
@@ -155,23 +156,23 @@ def getBuildID():
 	import xml.etree.ElementTree as ET
 	tree = ET.parse("/tmp/distribution.xml")
 	root = tree.getroot()
+	auxinfo = root.find('auxinfo')
 	
-	auxinfoKeys = root.findall("auxinfo/key")
-	auxinfoStrings = root.findall("auxinfo/string")
-	
-	if auxinfoKeys is not None and auxinfoStrings is not None:
-		if auxinfoKeys[0].text == 'BUILD':
-			buildID = auxinfoStrings[0].text
-		if auxinfoKeys[1].text == 'BUILD':
-			buildID = auxinfoStrings[1].text
-	
-		return buildID
+	if auxinfo is not None:
+		auxinfo_iter = auxinfo.iter()
+
+		for element in auxinfo_iter:
+			if element.tag == 'key' and element.text == 'BUILD':
+				try:
+					return auxinfo_iter.next().text
+				except StopIteration:
+					pass
 
 def writeScript(key, url):
 	url_parts = url.split('/')
 	version = url_parts[5] + '/' + url_parts[6]
 	salt = url_parts[8]
-	buildID = getBuildID()
+	buildID = getBuildID() or ""
 	scriptName = "installSeed-" + buildID + ".sh"
 	templateFileName = "installScriptTemplate.sh"
 	
