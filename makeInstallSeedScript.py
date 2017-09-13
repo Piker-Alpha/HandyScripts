@@ -19,16 +19,7 @@ import os
 import sys
 import plistlib
 import fileinput
-
-try:
-	import requests
-except ImportError:
-	from os.path import isfile
-	
-	if not isfile("/usr/local/bin/pip"):
-		sys.exit("""Run 'sudo easy_install pip' to install the Python Package Manager.""")
-	else:
-		sys.exit("""Run 'sudo pip install requests' to install a required module.""")
+import urllib2
 
 from Foundation import NSLocale
 
@@ -127,10 +118,13 @@ def downloadTemplate(fileName):
 	global gitHubBranch
 	gitHubContentURL = os.path.join(gitHubContentURL, gitHubBranch)
 	templateURL = os.path.join(gitHubContentURL, fileName)
-	request = requests.get(templateURL, stream=True, headers='')
+	req = urllib2.urlopen(templateURL)
 	file = open(fileName, 'w')
 	
-	for chunk in request.iter_content(1024):
+	while True:
+		chunk = req.read(1024)
+		if not chunk:
+			break
 		file.write(chunk)
 	file.close()
 
@@ -142,11 +136,14 @@ def downloadDistributionFile(product):
 		
 		if distributions[languageSelector]:
 			distributionURL = distributions.get(languageSelector)
-			request = requests.get(distributionURL, stream=True, headers='')
+			req = urllib2.urlopen(distributionURL)
 			distributionFile = os.path.join("/tmp", "distribution.xml")
 			file = open(distributionFile, 'w')
 			
-			for chunk in request.iter_content(4096):
+			while True:
+				chunk = req.read(4096)
+				if not chunk:
+					break
 				file.write(chunk)
 			file.close()
 
@@ -223,8 +220,8 @@ catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
 #
 # Get the software update catalog (sucatalog).
 #
-catalogRaw = requests.get(catalogURL, headers='')
-catalogData = catalogRaw.text.encode('UTF-8')
+catalogReq = urllib2.urlopen(catalogURL)
+catalogData = catalogReq.read()
 
 #
 # Get root.

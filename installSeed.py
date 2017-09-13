@@ -6,19 +6,19 @@
 # Version 2.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
-#          - comments added
-#          - target directory check added (Pike R. Alpha, August 2017)
-#          - filesize check added
-#          - renamed script
-#          - don't try to remove the .dist file if it isn't there.
-#          - copy InstallESDDmg.pkg to /Applications/Install macOS High Sierra Beta.app/Content/SharedSupport/InstallESD.dmg
-#          - set environment variable.
-#          - use sudo and path for productbuild.
-#          - internationalisation (i18n) support added (downloads the right dictionary).
-#          - initial refactoring done.
-#          - minor cleanups.
-#          - version number error fixed.
-#          - graceful exit with instructions to install pip/request module.
+#		   - comments added
+#		   - target directory check added (Pike R. Alpha, August 2017)
+#		   - filesize check added
+#		   - renamed script
+#		   - don't try to remove the .dist file if it isn't there.
+#		   - copy InstallESDDmg.pkg to /Applications/Install macOS High Sierra Beta.app/Content/SharedSupport/InstallESD.dmg
+#		   - set environment variable.
+#		   - use sudo and path for productbuild.
+#		   - internationalisation (i18n) support added (downloads the right dictionary).
+#		   - initial refactoring done.
+#		   - minor cleanups.
+#		   - version number error fixed.
+#		   - graceful exit with instructions to install pip/request module.
 #
 
 import os
@@ -26,17 +26,7 @@ import sys
 import glob
 import plistlib
 import subprocess
-
-try:
-	import requests
-except ImportError:
-	from os.path import isfile
-
-	if not isfile("/usr/local/bin/pip"):
-		sys.exit("""Run 'sudo easy_install pip' to install the Python Package Manager.""")
-	else:
-		sys.exit("""Run 'sudo pip install requests' to install a required module.""")
-
+import urllib2
 from os.path import basename
 from Foundation import NSLocale
 
@@ -60,42 +50,42 @@ seedProgramData = {
 # International Components for Unicode (http://www.localeplanet.com/icu/)
 #
 icuData = {
- "el":"el",         #Greek
- "vi":"vi",         #English (U.S. Virgin Islands)
- "ca":"cs",         #Aghem (Cameroon)
- "ar":"ar",         #Arabic
- "cs":"cs",         #Czech
- "id":"id",         #Indonesian
- "ru":"ru",         #Russian
- "no":"no",         #Norwegian
- "tr":"tr",         #Turkish
- "th":"th",         #Thai
- "he":"he",         #Hebrew
- "pt":"pt",         #Portuguese
- "pl":"pl",         #Polish
- "uk":"uk",         #Ukrainian
- "hr":"hr",         #Croatian
- "hu":"hu",         #Hungarian
- "hi":"hi",         #Hindi
- "fi":"fi",         #Finnish
- "da":"da",         #Danish
- "ro":"rp",         #Romanian
- "ko":"ko",         #Korean
- "sv":"sv",         #Swedish
- "sk":"sk",         #Slovak
- "ms":"ms",         #Malay
- "en":"English",    #English
- "ja":"Japanese",   #Japanese
- "nl":"Dutch",      #Dutch
- "fr":"French",     #French
- "it":"Italian",    #Italian
- "de":"German",     #German
- "es":"Spanish",    #Spanish
+ "el":"el",			#Greek
+ "vi":"vi",			#English (U.S. Virgin Islands)
+ "ca":"cs",			#Aghem (Cameroon)
+ "ar":"ar",			#Arabic
+ "cs":"cs",			#Czech
+ "id":"id",			#Indonesian
+ "ru":"ru",			#Russian
+ "no":"no",			#Norwegian
+ "tr":"tr",			#Turkish
+ "th":"th",			#Thai
+ "he":"he",			#Hebrew
+ "pt":"pt",			#Portuguese
+ "pl":"pl",			#Polish
+ "uk":"uk",			#Ukrainian
+ "hr":"hr",			#Croatian
+ "hu":"hu",			#Hungarian
+ "hi":"hi",			#Hindi
+ "fi":"fi",			#Finnish
+ "da":"da",			#Danish
+ "ro":"rp",			#Romanian
+ "ko":"ko",			#Korean
+ "sv":"sv",			#Swedish
+ "sk":"sk",			#Slovak
+ "ms":"ms",			#Malay
+ "en":"English",	#English
+ "ja":"Japanese",	#Japanese
+ "nl":"Dutch",		#Dutch
+ "fr":"French",		#French
+ "it":"Italian",	#Italian
+ "de":"German",		#German
+ "es":"Spanish",	#Spanish
  "es_419":"es_419", #Latin American Spanish
- "zh_TW":"zh_TW",   #Chinese (Traditional, Taiwan)
- "zh_CN":"zh_CN",   #Chinese (Simplified, China, Hong Kong, Macau and Singapore)
- "pt":"pt",         #Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
- "pt_PT":"pt_PT"    #Portuguese (Portugal)
+ "zh_TW":"zh_TW",	#Chinese (Traditional, Taiwan)
+ "zh_CN":"zh_CN",	#Chinese (Simplified, China, Hong Kong, Macau and Singapore)
+ "pt":"pt",			#Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
+ "pt_PT":"pt_PT"	#Portuguese (Portugal)
 }
 
 def getICUName(id):
@@ -130,7 +120,7 @@ def downloadDistributionFile(product):
 		
 		if distributions[languageSelector]:
 			distributionURL = distributions.get(languageSelector)
-			request = requests.get(distributionURL, stream=True, headers='')
+			req = urllib2.urlopen(distributionURL)
 			distributionID = key + '.' + languageSelector + '.dist'
 			distributionFile = os.path.join(targetPath, distributionID)
 			print 'Downloading: ' + distributionID + ' ...'
@@ -140,7 +130,10 @@ def downloadDistributionFile(product):
 			
 			file = open(distributionFile, 'w')
 			
-			for chunk in request.iter_content(1024):
+			while True:
+				chunk = req.read(1024)
+				if not chunk:
+					break
 				file.write(chunk)
 			file.close()
 				
@@ -214,8 +207,8 @@ catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
 #
 # Get the software update catalog (sucatalog).
 #
-catalogRaw = requests.get(catalogURL, headers='')
-catalogData = catalogRaw.text.encode('UTF-8')
+catalogReq = urllib2.urlopen(catalogURL)
+catalogData = catalogReq.read()
 
 #
 # Get root.
@@ -279,10 +272,13 @@ for key in products:
 					if shouldDownload == True:
 						print 'Downloading: ' + packageName + ' ...'
 						
-						request = requests.get(url, stream=True, headers='')
+						req = urllib2.urlopen(url)
 						file = open(filename, 'wb')
 
-						for chunk in request.iter_content(4096):
+						while True:
+							chunk = req.read(4096)
+							if not chunk:
+								break
 							file.write(chunk)
 						file.close()
 				#
