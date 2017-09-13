@@ -3,7 +3,7 @@
 #
 # Script (makeInstallSeedScript.py) to create a bash script that downloads the latest seed.
 #
-# Version 1.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #          - comments added.
@@ -12,7 +12,8 @@
 #          - internationalisation (i18n) support added (downloads the right dictionary).
 #          - indentation and comment errors fixed, superfluous code removed.
 #          - graceful exit with instructions to install pip/request module.
-#          - now using a generator object to get the buildID
+#          - now using a generator object to get the buildID.
+#          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
 #
 
 import os
@@ -26,7 +27,7 @@ from Foundation import NSLocale
 #
 # Script version info.
 #
-scriptVersion=1.6
+scriptVersion=1.7
 
 #
 # GitHub branch to pull data from (master or Beta).
