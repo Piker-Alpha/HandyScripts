@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -19,6 +19,7 @@
 #		   - minor cleanups.
 #		   - version number error fixed.
 #		   - graceful exit with instructions to install pip/request module.
+#          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
 #
 
 import os
@@ -27,6 +28,7 @@ import glob
 import plistlib
 import subprocess
 import urllib2
+
 from os.path import basename
 from Foundation import NSLocale
 
@@ -35,7 +37,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.0
+scriptVersion=2.1
 
 #
 # Setup seed program data.
