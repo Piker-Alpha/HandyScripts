@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -20,6 +20,7 @@
 #		   - version number error fixed.
 #		   - graceful exit with instructions to install pip/request module.
 #          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
+#		   - more refactoring work done.
 #
 
 import os
@@ -37,7 +38,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.1
+scriptVersion=2.2
 
 #
 # Setup seed program data.
@@ -90,6 +91,16 @@ icuData = {
  "pt_PT":"pt_PT"	#Portuguese (Portugal)
 }
 
+#
+# The target directory.
+#
+tmpDirectory="tmp"
+
+#
+# Name of target installer package.
+#
+installerPackage="installer.pkg"
+
 def getICUName(id):
 	return icuData.get(id, icuData['en'])
 
@@ -114,7 +125,19 @@ def selectLanguage():
 
 	return getICUName(id)
 
-def downloadDistributionFile(product):
+def getTargetVolume():
+	index = 0
+	targetVolumes = glob.glob("/Volumes/*")
+	print '\nAvailable target volumes:\n'
+	
+	for volume in targetVolumes:
+		print ('[ %i ] %s' % (index, basename(volume)))
+		index+=1
+	
+	volumeNumber = raw_input('\nSelect a target volume for the boot file: ')
+	return targetVolumes[int(volumeNumber)]
+
+def downloadDistributionFile(product, targetPath):
 	if 'Distributions' in product:
 		distributions = product['Distributions']
 		
@@ -130,212 +153,141 @@ def downloadDistributionFile(product):
 			if os.path.exists(distributionFile):
 				os.remove(distributionFile)
 			
-			file = open(distributionFile, 'w')
-			
-			while True:
-				chunk = req.read(1024)
-				if not chunk:
-					break
-				file.write(chunk)
-			file.close()
+			with open(distributionFile, 'w') as file:
+				while True:
+					chunk = req.read(1024)
+					if not chunk:
+						break
+					file.write(chunk)
+				file.close()
 				
 		return distributionFile
 
-#
-# Name of target installer package.
-#
-installerPackage="installer.pkg"
+def getSeedProgram():
+	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
+	buildID = systemVersionPlist['ProductBuildVersion']
+	print 'Current Build: ' + buildID
+	
+	try:
+		if systemVersionPlist['ProductVersion'] == '10.9':
+			seedEnrollmentPlist = plistlib.readPlist("/Library/Application Support/App Store/.SeedEnrollment.plist")
+		else:
+			seedEnrollmentPlist = plistlib.readPlist("/Users/Shared/.SeedEnrollment.plist")
+	except IOError:
+		return ''
+	
+	seedProgram = seedEnrollmentPlist['SeedProgram']
+	print 'Seed Program Enrollment: ' + seedProgram
+	return seedProgram
 
-#
-# Initialisation of a variable.
-#
-index = 0
+def getCatalogData():
+	seedProgram = getSeedProgram()
+	catalog = seedProgramData.get(seedProgram, seedProgramData['PublicSeed'])
+	catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
+	catalogReq = urllib2.urlopen(catalogURL)
+	#print catalogReq.info().getheader('Content-Length')
+	return catalogReq.read()
 
-#
-# Collect available target volume names.
-#
-targetVolumes = glob.glob("/Volumes/*")
-
-print '\nAvailable target volumes:\n'
-
-for volume in targetVolumes:
-	print ('[ %i ] %s' % (index, basename(volume)))
-	index+=1
-
-#
-# Ask to select a target volume.
-#
-volumeNumber = raw_input('\nSelect a target volume for the boot file: ')
-
-#
-# Path to target volume.
-#
-targetVolume = targetVolumes[int(volumeNumber)]
-#print targetVolume
-
-#
-# Read ProductBuildVersion from SystemVersionplist.
-#
-systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
-buildID = systemVersionPlist['ProductBuildVersion']
-
-#
-# Read ProductVersion from SystemVersionplist.
-#
-if systemVersionPlist['ProductVersion'] == '10.9':
-	#
-	# Read enrollment plist for 10.9.
-	#
-	seedEnrollmentPlist = plistlib.readPlist("/Library/Application Support/App Store/.SeedEnrollment.plist")
-else:
-	#
-	# Read enrollment plist for 10.10 and greater.
-	#
-	seedEnrollmentPlist = plistlib.readPlist("/Users/Shared/.SeedEnrollment.plist")
-
-#
-# Read SeedProgram from enrollment plist.
-#
-seedProgram = seedEnrollmentPlist['SeedProgram']
-print 'Seed Program Enrollment: ' + seedProgram
-
-#
-# Get catalog path from seedProgramData.
-#
-catalog = seedProgramData.get(seedProgram, seedProgramData['PublicSeed'])
-catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
-#print catalogURL
-
-#
-# Get the software update catalog (sucatalog).
-#
-catalogReq = urllib2.urlopen(catalogURL)
-catalogData = catalogReq.read()
-
-#
-# Get root.
-#
-root = plistlib.readPlistFromString(catalogData)
-#
-# Get available products.
-#
-products = root['Products']
-
-#
-# Loop through the product keys.
-#
-for key in products:
-	if 'ExtendedMetaInfo' in products[key]:
-		extendedMetaInfo = products[key]['ExtendedMetaInfo']
-		
-		if 'InstallAssistantPackageIdentifiers' in extendedMetaInfo:
-			IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
-			
-			if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
-				#print key
-				targetPath = os.path.join(targetVolume, 'tmp', key)
-				#print targetPath
-				#
-				# Check target directory.
-				#
-				if not os.path.isdir(targetPath):
-					os.makedirs(targetPath)
-			
-				product = products[key]
-				packages = product['Packages']
-				#
-				# Main package loop
-				#
-				for package in packages:
-					url = package.get('URL')
-					size = package.get('Size')
-					packageName = basename(url)
-					filename = os.path.join(targetPath, packageName)
-					shouldDownload = False
-					#
-					# Check if file exists (already downloaded?).
-					#
-					if os.path.exists(filename):
-						#
-						# Check filesize (broken download).
-						#
-						if os.path.getsize(filename) == size:
-							print 'File: %s already there, skipping this download.' % packageName
-							shouldDownload = False
-						else:
-							print 'Error: Filesize incorrect, removing %s.' % packageName
-							os.remove(filename)
-							shouldDownload = True
-					else:
-						shouldDownload = True
-					#
-					# Should we download this file?
-					#
-					if shouldDownload == True:
-						print 'Downloading: ' + packageName + ' ...'
-						
-						req = urllib2.urlopen(url)
-						file = open(filename, 'wb')
-
-						while True:
-							chunk = req.read(4096)
-							if not chunk:
-								break
-							file.write(chunk)
-						file.close()
-				#
-				#
-				#
-				distributionFile = downloadDistributionFile(product)
-				#
-				# Create installer package.
-				#
-				print 'Creating %s ...' % installerPackage
-				installerPkg = os.path.join(targetPath, installerPackage)
-				#print installerPkg
-				subprocess.call(["sudo", "/usr/bin/productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
-
-				#
-				# Launch the installer.
-				#
-				if os.path.exists(installerPkg):
-					print 'Running installer ...'
-					subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
+def getProduct():
+	global key
+	macOSVersion = '10.13'
+	catalogData = getCatalogData()
+	root = plistlib.readPlistFromString(catalogData)
+	products = root['Products']
+	
+	for key in products:
+		if 'ExtendedMetaInfo' in products[key]:
+			extendedMetaInfo = products[key]['ExtendedMetaInfo']
+				
+			if 'InstallAssistantPackageIdentifiers' in extendedMetaInfo:
+				IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
 					
-				#
-				# Do we have a SharedSupport folder?
-				#
-				# Note: This may fail when you install the package from another volume (giving the installer the wrong mount point).
-				#
-				if os.path.isdir(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport"):
-					#
-					# Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 Beta.app needs?
-					#
-					if not os.path.exists(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg"):
-						#
-						# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
-						#
-						print 'Copying: InstallESDDmg.pkg to the target location ...'
-						sourceFile = os.path.join(targetPath, "InstallESDDmg.pkg")
-						#print sourceFile
-						sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport")
-						#print targetPath
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
-						#
-						# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
-						#
-						print 'Copying: AppleDiagnostics.dmg to the target location ...'
-						sourceFile = os.path.join(targetPath, "AppleDiagnostics.dmg")
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
-						print 'Copying: AppleDiagnostics.chunklist to the target location ...'
-						sourceFile = os.path.join(targetPath, "AppleDiagnostics.chunklist")
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
-						#
-						# Without this step we end up without BaseSystem.[dmg/chunklist].
-						#
-						print 'Copying: BaseSystem.dmg to the target location ...'
-						sourceFile = os.path.join(targetPath, "BaseSystem.dmg")
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
-						print 'Copying: BaseSystem.chunklist to the target location ...'
-						sourceFile = os.path.join(targetPath, "BaseSystem.chunklist")
-						subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+				if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
+					return products[key]
+
+def downloadFile(url, targetFilename):
+	fileReq = urllib2.urlopen(url)
+	print fileReq.info().getheader('Content-Length')
+	
+	with open(targetFilename, 'wb') as file:
+		while True:
+			chunk = fileReq.read(4096)
+			if not chunk:
+				break
+			file.write(chunk)
+
+def getPackages(targetVolume):
+	global distributionFile
+	product = getProduct()
+	targetPath = os.path.join(targetVolume, tmpDirectory, key)
+	
+	if not os.path.isdir(targetPath):
+		os.makedirs(targetPath)
+	
+	distributionFile = downloadDistributionFile(product, targetPath)
+	packages = product['Packages']
+
+	for package in packages:
+		url = package.get('URL')
+		packageName = basename(url)
+		targetFilename = os.path.join(targetPath, packageName)
+		print 'Downloading: ' + packageName + ' ...'
+		downloadFile(url, targetFilename)
+	return key
+
+def copyFiles(targetVolume, key):
+	targetPath = os.path.join(targetVolume, tmpDirectory, key)
+
+	if os.path.isdir(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport"):
+		#
+		# Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 Beta.app needs?
+		#
+		if not os.path.exists(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg"):
+			#
+			# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
+			#
+			print 'Copying: InstallESDDmg.pkg to the target location ...'
+			sourceFile = os.path.join(targetPath, "InstallESDDmg.pkg")
+			#print sourceFile
+			sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport")
+			#print targetPath
+			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
+			#
+			# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
+			#
+			print 'Copying: AppleDiagnostics.dmg to the target location ...'
+			sourceFile = os.path.join(targetPath, "AppleDiagnostics.dmg")
+			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			print 'Copying: AppleDiagnostics.chunklist to the target location ...'
+			sourceFile = os.path.join(targetPath, "AppleDiagnostics.chunklist")
+			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			#
+			# Without this step we end up without BaseSystem.[dmg/chunklist].
+			#
+			print 'Copying: BaseSystem.dmg to the target location ...'
+			sourceFile = os.path.join(targetPath, "BaseSystem.dmg")
+			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			print 'Copying: BaseSystem.chunklist to the target location ...'
+			sourceFile = os.path.join(targetPath, "BaseSystem.chunklist")
+			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+
+def runInstaller(installerPkg, targetVolume):
+	print 'Running installer ...'
+	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
+	#/System/Library/CoreServices/Installer.app/Contents/MacOS/Installer
+
+def installSeedPackage(distributionFile, key, targetVolume):
+	targetPath = os.path.join(targetVolume, tmpDirectory, key)
+	installerPkg = os.path.join(targetPath, installerPackage)
+	print 'Creating installer.pkg ...'
+	subprocess.call(["sudo", "productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
+	
+	if os.path.exists(installerPkg):
+		runInstaller(installerPkg,targetVolume)
+
+if __name__ == "__main__":
+	targetVolume = getTargetVolume()
+	key = getPackages(targetVolume)
+	installSeedPackage(distributionFile, key, targetVolume)
+	copyFiles(targetVolume, key)
+
