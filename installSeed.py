@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -21,6 +21,7 @@
 #		   - graceful exit with instructions to install pip/request module.
 #          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
 #		   - more refactoring work done.
+#		   - improved output of macOS name and version.
 #
 
 import os
@@ -29,6 +30,7 @@ import glob
 import plistlib
 import subprocess
 import urllib2
+import platform
 
 from os.path import basename
 from Foundation import NSLocale
@@ -38,7 +40,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.2
+scriptVersion=2.3
 
 #
 # Setup seed program data.
@@ -100,6 +102,29 @@ tmpDirectory="tmp"
 # Name of target installer package.
 #
 installerPackage="installer.pkg"
+
+def getOSVersion():
+	version = platform.mac_ver()
+	return float('.'.join(version[0].split('.')[:2]))
+
+def getOSNameByOSVersion(version):
+	switcher = {
+	10.0:	"Cheetah",
+	10.1:	"Puma",
+	10.2:	"Jaguar",
+	10.3: 	"Panther",
+	10.4:	"Tiger",
+	10.5:	"Leopard",
+	10.6:	"Snow Leopard",
+	10.7:	"Lion",
+	10.8:	"Mountain Lion",
+	10.9:	"Mavericks",
+	10.10:	"Yosemite",
+	10.11:	"El Capitan",
+	10.12:	"Sierra",
+	10.13:	"High Sierra"
+	}
+	return switcher.get(version, "Unknown")
 
 def getICUName(id):
 	return icuData.get(id, icuData['en'])
@@ -164,9 +189,11 @@ def downloadDistributionFile(product, targetPath):
 		return distributionFile
 
 def getSeedProgram():
-	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
+	version = getOSVersion()
+	name = getOSNameByOSVersion(version)
 	buildID = systemVersionPlist['ProductBuildVersion']
-	print 'Current Build: ' + buildID
+	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
+	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, buildID)
 	
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
