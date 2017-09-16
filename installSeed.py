@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -22,6 +22,7 @@
 #          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
 #		   - more refactoring work done.
 #		   - improved output of macOS name and version.
+#		   - swap line order (error in v2.3).
 #
 
 import os
@@ -40,7 +41,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.3
+scriptVersion=2.4
 
 #
 # Setup seed program data.
@@ -191,8 +192,8 @@ def downloadDistributionFile(product, targetPath):
 def getSeedProgram():
 	version = getOSVersion()
 	name = getOSNameByOSVersion(version)
-	buildID = systemVersionPlist['ProductBuildVersion']
 	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
+	buildID = systemVersionPlist['ProductBuildVersion']
 	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, buildID)
 	
 	try:
