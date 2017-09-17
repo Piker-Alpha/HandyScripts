@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -27,6 +27,7 @@
 #		   - improved output of downloads and streamlined use of arguments.
 #		   - multithreaded package downloads.
 #		   - undone the renaming of getPackages() from Brian's tree.
+#		   - now showing a list of the queued downloads, and when they are finished.
 #
 
 import os
@@ -46,7 +47,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.6
+scriptVersion=2.7
 
 #
 # Setup seed program data.
@@ -238,7 +239,7 @@ def downloadFile(argumentData):
 	filesize = argumentData[2]
 
 	with open(targetFilename, 'wb') as file:
-		print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
+		#print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = fileReq.read(4096)
 			if not chunk:
@@ -271,6 +272,13 @@ def getPackages(languageSelector):
 		targetFilename = os.path.join(targetPath, filename)
 		filesize = package.get('Size')
 		args = [url, targetFilename, filesize]
+		list.append(args)
+
+	if not len(list) == 0:
+		print '\nQueued Downloads:\n'
+		for array in list:
+			print '%s [%s bytes]' % (basename(array[1]), array[2])
+		print ''
 
 	p = Pool()
 	p.map(downloadFile, list)
