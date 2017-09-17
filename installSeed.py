@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -19,10 +19,12 @@
 #		   - minor cleanups.
 #		   - version number error fixed.
 #		   - graceful exit with instructions to install pip/request module.
-#          - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
+#		   - use urllib2 instead of requests (thanks to Per Olofsson aka MagerValp).
 #		   - more refactoring work done.
 #		   - improved output of macOS name and version.
 #		   - swap line order (error in v2.3).
+#		   - eliminated two global variables and fixed some whitespace errors.
+#		   - improved output of downloads and streamlined use of arguments.
 #
 
 import os
@@ -41,7 +43,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.4
+scriptVersion=2.5
 
 #
 # Setup seed program data.
@@ -163,31 +165,24 @@ def getTargetVolume():
 	volumeNumber = raw_input('\nSelect a target volume for the boot file: ')
 	return targetVolumes[int(volumeNumber)]
 
-def downloadDistributionFile(product, targetPath):
-	if 'Distributions' in product:
-		distributions = product['Distributions']
-		
-		languageSelector = selectLanguage()
-		
-		if distributions[languageSelector]:
-			distributionURL = distributions.get(languageSelector)
-			req = urllib2.urlopen(distributionURL)
-			distributionID = key + '.' + languageSelector + '.dist'
-			distributionFile = os.path.join(targetPath, distributionID)
-			print 'Downloading: ' + distributionID + ' ...'
-			
-			if os.path.exists(distributionFile):
-				os.remove(distributionFile)
-			
-			with open(distributionFile, 'w') as file:
-				while True:
-					chunk = req.read(1024)
-					if not chunk:
-						break
-					file.write(chunk)
-				file.close()
-				
-		return distributionFile
+def downloadDistributionFile(url, targetPath):
+	req = urllib2.urlopen(url)
+	filename = basename(url)
+	filesize = req.info().getheader('Content-Length')
+	distributionFile = os.path.join(targetPath, filename)
+	
+	if os.path.exists(distributionFile):
+		os.remove(distributionFile)
+
+	with open(distributionFile, 'w') as file:
+		print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
+		while True:
+			chunk = req.read(1024)
+			if not chunk:
+				break
+			file.write(chunk)
+
+	return distributionFile
 
 def getSeedProgram():
 	version = getOSVersion()
@@ -217,7 +212,6 @@ def getCatalogData():
 	return catalogReq.read()
 
 def getProduct():
-	global key
 	macOSVersion = '10.13'
 	catalogData = getCatalogData()
 	root = plistlib.readPlistFromString(catalogData)
@@ -231,37 +225,45 @@ def getProduct():
 				IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
 					
 				if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
-					return products[key]
+					return (key, products[key])
 
 def downloadFile(url, targetFilename):
 	fileReq = urllib2.urlopen(url)
-	print fileReq.info().getheader('Content-Length')
-	
+	filename = basename(url)
+	filesize = fileReq.info().getheader('Content-Length')
+
 	with open(targetFilename, 'wb') as file:
+		print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = fileReq.read(4096)
 			if not chunk:
 				break
 			file.write(chunk)
 
-def getPackages(targetVolume):
-	global distributionFile
-	product = getProduct()
+def selectPackage(languageSelector):
+	data = getProduct()
+	key = data[0]
+	product = data[1]
+	targetVolume = getTargetVolume()
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
-	
+
 	if not os.path.isdir(targetPath):
 		os.makedirs(targetPath)
-	
-	distributionFile = downloadDistributionFile(product, targetPath)
+
+	distributions = product['Distributions']
+
+	if distributions[languageSelector]:
+		distributionURL = distributions.get(languageSelector)
+		distributionFile = downloadDistributionFile(distributionURL, targetPath)
+
 	packages = product['Packages']
 
 	for package in packages:
 		url = package.get('URL')
-		packageName = basename(url)
-		targetFilename = os.path.join(targetPath, packageName)
-		print 'Downloading: ' + packageName + ' ...'
+		filename = basename(url)
+		targetFilename = os.path.join(targetPath, filename)
 		downloadFile(url, targetFilename)
-	return key
+	return (url, targetFilename)
 
 def copyFiles(targetVolume, key):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
@@ -311,11 +313,18 @@ def installSeedPackage(distributionFile, key, targetVolume):
 	subprocess.call(["sudo", "productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
 	
 	if os.path.exists(installerPkg):
-		runInstaller(installerPkg,targetVolume)
+		runInstaller(installerPkg, targetVolume)
 
 if __name__ == "__main__":
-	targetVolume = getTargetVolume()
-	key = getPackages(targetVolume)
-	installSeedPackage(distributionFile, key, targetVolume)
-	copyFiles(targetVolume, key)
+	languageSelector = selectLanguage()
+	data = selectPackage(languageSelector)
+	key = data[0]
+	distributionFile = data[1]
+	targetVolume = data[2]
+
+	if key == "":
+		print 'Error: Aborting ...'
+	else:
+		installSeedPackage(distributionFile, key, targetVolume)
+		copyFiles(targetVolume, key)
 
