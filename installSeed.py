@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.7 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.8 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -28,6 +28,10 @@
 #		   - multithreaded package downloads.
 #		   - undone the renaming of getPackages() from Brian's tree.
 #		   - now showing a list of the queued downloads, and when they are finished.
+#		   - show seed BuildID/Key and ask the user for consent before continuing.
+#		   - checks added for user input.
+#		   - copyright notice in output of script added.
+#		   - minor cleanups.
 #
 
 import os
@@ -41,13 +45,15 @@ import platform
 from os.path import basename
 from Foundation import NSLocale
 from multiprocessing import Pool
+from xml.etree import ElementTree
+from numbers import Number
 
 os.environ['__OS_INSTALL'] = "1"
 
 #
 # Script version info.
 #
-scriptVersion=2.7
+scriptVersion=2.8
 
 #
 # Setup seed program data.
@@ -166,7 +172,18 @@ def getTargetVolume():
 		print ('[ %i ] %s' % (index, basename(volume)))
 		index+=1
 	
-	volumeNumber = raw_input('\nSelect a target volume for the boot file: ')
+	print ''
+
+	while True:
+		try:
+			volumeNumber = int(raw_input('Select a target volume for the boot file: '))
+			if volumeNumber > (index-1):
+				sys.stdout.write("\033[F\033[K")
+			else:
+				break;
+		except:
+			sys.stdout.write("\033[F\033[K")
+
 	return targetVolumes[int(volumeNumber)]
 
 def downloadDistributionFile(url, targetPath):
@@ -179,7 +196,7 @@ def downloadDistributionFile(url, targetPath):
 		os.remove(distributionFile)
 
 	with open(distributionFile, 'w') as file:
-		print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
+		print '\nDownloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = req.read(1024)
 			if not chunk:
@@ -212,7 +229,6 @@ def getCatalogData():
 	catalog = seedProgramData.get(seedProgram, seedProgramData['PublicSeed'])
 	catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
 	catalogReq = urllib2.urlopen(catalogURL)
-	#print catalogReq.info().getheader('Content-Length')
 	return catalogReq.read()
 
 def getProduct():
@@ -231,7 +247,7 @@ def getProduct():
 				if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
 					return (key, products[key])
 
-def downloadFile(argumentData):
+def downloadFiles(argumentData):
 	url = argumentData[0]
 	targetFilename = argumentData[1]
 	fileReq = urllib2.urlopen(url)
@@ -239,13 +255,26 @@ def downloadFile(argumentData):
 	filesize = argumentData[2]
 
 	with open(targetFilename, 'wb') as file:
-		#print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = fileReq.read(4096)
 			if not chunk:
 				print 'Download of %s finished' % filename
 				break
 			file.write(chunk)
+
+def getBuildID(distributionFile):
+	tree = ElementTree.parse(distributionFile)
+	root = tree.getroot()
+	auxinfo = root.find('auxinfo')
+	auxinfo_iter = auxinfo.iter()
+
+	for element in auxinfo_iter:
+		if element.tag == 'key' and element.text == 'BUILD':
+			try:
+				return auxinfo_iter.next().text
+			except StopIteration:
+				pass
+	return ''
 
 def getPackages(languageSelector):
 	list = []
@@ -264,6 +293,19 @@ def getPackages(languageSelector):
 		distributionURL = distributions.get(languageSelector)
 		distributionFile = downloadDistributionFile(distributionURL, targetPath)
 
+	buildID = getBuildID(distributionFile)
+
+	print 'Found Install Package with BuildID (%s) and Key (%s)\n' % (buildID , key)
+	while True:
+		confirm = raw_input('Do you want to continue [y/n] ? ').lower()
+		if confirm in ('n', 'y'):
+			if confirm == 'n':
+				return ('', '', '')
+			elif confirm == 'y':
+				break
+		else:
+			sys.stdout.write("\033[F\033[K")
+	
 	packages = product['Packages']
 
 	for package in packages:
@@ -275,13 +317,13 @@ def getPackages(languageSelector):
 		list.append(args)
 
 	if not len(list) == 0:
-		print '\nQueued Downloads:\n'
+		print '\nQueued Downloads:'
 		for array in list:
 			print '%s [%s bytes]' % (basename(array[1]), array[2])
 		print ''
 
 	p = Pool()
-	p.map(downloadFile, list)
+	p.map(downloadFiles, list)
 	p.close()
 
 	return (key, distributionFile, targetVolume)
@@ -337,6 +379,7 @@ def installSeedPackage(distributionFile, key, targetVolume):
 		runInstaller(installerPkg, targetVolume)
 
 if __name__ == "__main__":
+	print 'installSeed.py v%s Copyright (c) 2017 by Pike R. Alpha\n' % scriptVersion
 	languageSelector = selectLanguage()
 	data = getPackages(languageSelector)
 	key = data[0]
