@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -25,6 +25,8 @@
 #		   - swap line order (error in v2.3).
 #		   - eliminated two global variables and fixed some whitespace errors.
 #		   - improved output of downloads and streamlined use of arguments.
+#		   - multithreaded package downloads.
+#		   - undone the renaming of getPackages() from Brian's tree.
 #
 
 import os
@@ -37,13 +39,14 @@ import platform
 
 from os.path import basename
 from Foundation import NSLocale
+from multiprocessing import Pool
 
 os.environ['__OS_INSTALL'] = "1"
 
 #
 # Script version info.
 #
-scriptVersion=2.5
+scriptVersion=2.6
 
 #
 # Setup seed program data.
@@ -227,20 +230,24 @@ def getProduct():
 				if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
 					return (key, products[key])
 
-def downloadFile(url, targetFilename):
+def downloadFile(argumentData):
+	url = argumentData[0]
+	targetFilename = argumentData[1]
 	fileReq = urllib2.urlopen(url)
 	filename = basename(url)
-	filesize = fileReq.info().getheader('Content-Length')
+	filesize = argumentData[2]
 
 	with open(targetFilename, 'wb') as file:
 		print 'Downloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = fileReq.read(4096)
 			if not chunk:
+				print 'Download of %s finished' % filename
 				break
 			file.write(chunk)
 
-def selectPackage(languageSelector):
+def getPackages(languageSelector):
+	list = []
 	data = getProduct()
 	key = data[0]
 	product = data[1]
@@ -262,8 +269,14 @@ def selectPackage(languageSelector):
 		url = package.get('URL')
 		filename = basename(url)
 		targetFilename = os.path.join(targetPath, filename)
-		downloadFile(url, targetFilename)
-	return (url, targetFilename)
+		filesize = package.get('Size')
+		args = [url, targetFilename, filesize]
+
+	p = Pool()
+	p.map(downloadFile, list)
+	p.close()
+
+	return (key, distributionFile, targetVolume)
 
 def copyFiles(targetVolume, key):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
@@ -317,7 +330,7 @@ def installSeedPackage(distributionFile, key, targetVolume):
 
 if __name__ == "__main__":
 	languageSelector = selectLanguage()
-	data = selectPackage(languageSelector)
+	data = getPackages(languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
