@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -34,6 +34,7 @@
 #		   - minor cleanups.
 #		   - whitespace, output (formatting) and indentation fixes.
 #		   - initial support for seed updates and downloads of a single packet.
+#		   - command line arguments added.
 #
 
 import os
@@ -43,6 +44,7 @@ import plistlib
 import subprocess
 import urllib2
 import platform
+import getopt
 
 from os.path import basename
 from Foundation import NSLocale
@@ -55,7 +57,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.0
+scriptVersion=3.1
 
 #
 # Setup seed program data.
@@ -178,7 +180,7 @@ def getTargetVolume():
 
 	while True:
 		try:
-			volumeNumber = int(raw_input('Select a target volume for the boot file: '))
+			volumeNumber = int(raw_input('Select a target volume: '))
 			if volumeNumber > (index-1):
 				sys.stdout.write("\033[F\033[K")
 			else:
@@ -295,12 +297,14 @@ def getBuildID(distributionFile):
 
 	return 'Unknown'
 
-def getPackages(productType, targetPackageName, languageSelector):
+def getPackages(productType, targetPackageName, targetVolume, askForConfirmation, languageSelector):
 	list = []
 	data = getProduct(productType)
 	key = data[0]
 	product = data[1]
-	targetVolume = getTargetVolume()
+	
+	if targetVolume == '':
+		targetVolume = getTargetVolume()
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 
 	if not os.path.isdir(targetPath):
@@ -313,17 +317,19 @@ def getPackages(productType, targetPackageName, languageSelector):
 		distributionFile = downloadDistributionFile(distributionURL, targetPath)
 
 	buildID = getBuildID(distributionFile)
+	print 'Found Install Package with BuildID (%s) and Key (%s)' % (buildID , key)
 
-	print 'Found Install Package with BuildID (%s) and Key (%s)\n' % (buildID , key)
-	while True:
-		confirm = raw_input('Do you want to continue [y/n] ? ').lower()
-		if confirm in ('n', 'y'):
-			if confirm == 'n':
-				return ('', '', '')
-			elif confirm == 'y':
-				break
-		else:
-			sys.stdout.write("\033[F\033[K")
+	if askForConfirmation == True:
+		print '\n'
+		while True:
+			confirm = raw_input('Do you want to continue [y/n] ? ').lower()
+			if confirm in ('n', 'y'):
+				if confirm == 'n':
+					return ('', '', '')
+				elif confirm == 'y':
+					break
+			else:
+				sys.stdout.write("\033[F\033[K")
 
 	packages = product['Packages']
 
@@ -345,6 +351,9 @@ def getPackages(productType, targetPackageName, languageSelector):
 		p = Pool()
 		p.map(downloadFiles, list)
 		p.close()
+	else:
+		if targetPackageName != "*":
+			print '\nWarning: target package > %s < not found!' % targetPackageName
 
 	return (key, distributionFile, targetVolume)
 
@@ -387,7 +396,6 @@ def copyFiles(targetVolume, key):
 def runInstaller(installerPkg, targetVolume):
 	print '\nRunning installer ...'
 	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
-	#/System/Library/CoreServices/Installer.app/Contents/MacOS/Installer
 
 def installSeedPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
@@ -398,17 +406,62 @@ def installSeedPackage(distributionFile, key, targetVolume):
 	if os.path.exists(installerPkg):
 		runInstaller(installerPkg, targetVolume)
 
-if __name__ == "__main__":
+def showUsage(arg):
+	if not arg == False:
+		print 'Error: invalid argument \'%s\' used\n' % arg
+	print 'Supported arguments:\n'
+	print 'installSeed.py -a update'
+	print 'installSeed.py -a update -f <packagename>'
+	print 'installSeed.py -a update -f <packagename> -t <volume>'
+	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
+	print 'installSeed.py -a install'
+	print 'installSeed.py -a install -f <packagename>'
+	print 'installSeed.py -a install -f <packagename> -t <volume>'
+	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
+	sys.exit(2)
+
+def main(argv):
+	sys.stdout.write("\x1b[2J\x1b[H")
 	print 'installSeed.py v%s Copyright (c) 2017 by Pike R. Alpha\n' % scriptVersion
+	action = 'install'
+	target = '*'
+	volume = ''
+	confirm = True;
 	languageSelector = selectLanguage()
-	data = getPackages('install', '*', languageSelector)
+
+	try:
+		opts, args = getopt.getopt(argv,"h:a:f:t:c:",["action=","file="])
+	except getopt.GetoptError:
+		showUsage(False)
+
+	for opt, arg in opts:
+		if opt == '-h':
+			showUsage(False)
+		elif opt == '-a':
+			if arg in ('update', 'install'):
+				action = arg
+			else:
+				showUsage(arg)
+		elif opt == '-f':
+			target = arg
+		elif opt == '-c':
+			confirm = arg
+		elif opt == '-t':
+			volume = arg
+
+	data = getPackages(action, target, volume, confirm, languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
 
-	if key == "":
-		print 'Error: Aborting ...'
-	else:
-		installSeedPackage(distributionFile, key, targetVolume)
-		copyFiles(targetVolume, key)
+ 	if key == "":
+ 		print "Error: Aborting ..."
+ 	elif target == "*":
+		if action == "install":
+			installSeedPackage(distributionFile, key, targetVolume)
+			copyFiles(targetVolume, key)
+		elif action == "update":
+			print 'Support for -a update is not implemented in v%s' % scriptVersion
 
+if __name__ == "__main__":
+	main(sys.argv[1:])
