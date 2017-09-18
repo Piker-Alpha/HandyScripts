@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.8 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.9 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -32,6 +32,7 @@
 #		   - checks added for user input.
 #		   - copyright notice in output of script added.
 #		   - minor cleanups.
+#		   - whitespace, output (formatting) and indentation fixes.
 #
 
 import os
@@ -53,7 +54,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.8
+scriptVersion=2.9
 
 #
 # Setup seed program data.
@@ -99,7 +100,7 @@ icuData = {
  "it":"Italian",	#Italian
  "de":"German",		#German
  "es":"Spanish",	#Spanish
- "es_419":"es_419", #Latin American Spanish
+ "es_419":"es_419",	#Latin American Spanish
  "zh_TW":"zh_TW",	#Chinese (Traditional, Taiwan)
  "zh_CN":"zh_CN",	#Chinese (Simplified, China, Hong Kong, Macau and Singapore)
  "pt":"pt",			#Portuguese (Angola, Brazil, Guinea-Bissau and Mozambique)
@@ -167,11 +168,11 @@ def getTargetVolume():
 	index = 0
 	targetVolumes = glob.glob("/Volumes/*")
 	print '\nAvailable target volumes:\n'
-	
+
 	for volume in targetVolumes:
 		print ('[ %i ] %s' % (index, basename(volume)))
 		index+=1
-	
+
 	print ''
 
 	while True:
@@ -191,7 +192,7 @@ def downloadDistributionFile(url, targetPath):
 	filename = basename(url)
 	filesize = req.info().getheader('Content-Length')
 	distributionFile = os.path.join(targetPath, filename)
-	
+
 	if os.path.exists(distributionFile):
 		os.remove(distributionFile)
 
@@ -211,7 +212,7 @@ def getSeedProgram():
 	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
 	buildID = systemVersionPlist['ProductBuildVersion']
 	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, buildID)
-	
+
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
 			seedEnrollmentPlist = plistlib.readPlist("/Library/Application Support/App Store/.SeedEnrollment.plist")
@@ -219,7 +220,7 @@ def getSeedProgram():
 			seedEnrollmentPlist = plistlib.readPlist("/Users/Shared/.SeedEnrollment.plist")
 	except IOError:
 		return ''
-	
+
 	seedProgram = seedEnrollmentPlist['SeedProgram']
 	print 'Seed Program Enrollment: ' + seedProgram
 	return seedProgram
@@ -305,7 +306,7 @@ def getPackages(languageSelector):
 				break
 		else:
 			sys.stdout.write("\033[F\033[K")
-	
+
 	packages = product['Packages']
 
 	for package in packages:
@@ -321,10 +322,9 @@ def getPackages(languageSelector):
 		for array in list:
 			print '%s [%s bytes]' % (basename(array[1]), array[2])
 		print ''
-
-	p = Pool()
-	p.map(downloadFiles, list)
-	p.close()
+		p = Pool()
+		p.map(downloadFiles, list)
+		p.close()
 
 	return (key, distributionFile, targetVolume)
 
@@ -339,7 +339,7 @@ def copyFiles(targetVolume, key):
 			#
 			# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
 			#
-			print 'Copying: InstallESDDmg.pkg to the target location ...'
+			print '\nCopying: InstallESDDmg.pkg to the target location ...'
 			sourceFile = os.path.join(targetPath, "InstallESDDmg.pkg")
 			#print sourceFile
 			sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport")
@@ -365,16 +365,16 @@ def copyFiles(targetVolume, key):
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 
 def runInstaller(installerPkg, targetVolume):
-	print 'Running installer ...'
+	print '\nRunning installer ...'
 	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
 	#/System/Library/CoreServices/Installer.app/Contents/MacOS/Installer
 
 def installSeedPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	installerPkg = os.path.join(targetPath, installerPackage)
-	print 'Creating installer.pkg ...'
+	print '\nCreating installer.pkg ...'
 	subprocess.call(["sudo", "productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
-	
+
 	if os.path.exists(installerPkg):
 		runInstaller(installerPkg, targetVolume)
 
