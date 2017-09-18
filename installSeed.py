@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 2.9 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.0 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -33,6 +33,7 @@
 #		   - copyright notice in output of script added.
 #		   - minor cleanups.
 #		   - whitespace, output (formatting) and indentation fixes.
+#		   - initial support for seed updates and downloads of a single packet.
 #
 
 import os
@@ -54,7 +55,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=2.9
+scriptVersion=3.0
 
 #
 # Setup seed program data.
@@ -232,21 +233,29 @@ def getCatalogData():
 	catalogReq = urllib2.urlopen(catalogURL)
 	return catalogReq.read()
 
-def getProduct():
+def getProduct(productType):
 	macOSVersion = '10.13'
 	catalogData = getCatalogData()
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
-	
-	for key in products:
-		if 'ExtendedMetaInfo' in products[key]:
-			extendedMetaInfo = products[key]['ExtendedMetaInfo']
-				
-			if 'InstallAssistantPackageIdentifiers' in extendedMetaInfo:
-				IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
-					
-				if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
-					return (key, products[key])
+
+	if productType == "install":
+		for key in products:
+			if 'ExtendedMetaInfo' in products[key]:
+				extendedMetaInfo = products[key]['ExtendedMetaInfo']
+
+				if 'InstallAssistantPackageIdentifiers' in extendedMetaInfo:
+					IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
+
+					if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
+						return (key, products[key])
+	elif productType == "update":
+		for key in products:
+			if 'ExtendedMetaInfo' in products[key]:
+				extendedMetaInfo = products[key]['ExtendedMetaInfo']
+				if 'ProductType' in extendedMetaInfo:
+					if extendedMetaInfo['ProductType'] == 'macOS' and extendedMetaInfo['ProductVersion'] == macOSVersion:
+						return (key, products[key])
 
 def downloadFiles(argumentData):
 	url = argumentData[0]
@@ -267,19 +276,28 @@ def getBuildID(distributionFile):
 	tree = ElementTree.parse(distributionFile)
 	root = tree.getroot()
 	auxinfo = root.find('auxinfo')
-	auxinfo_iter = auxinfo.iter()
 
-	for element in auxinfo_iter:
-		if element.tag == 'key' and element.text == 'BUILD':
-			try:
-				return auxinfo_iter.next().text
-			except StopIteration:
-				pass
-	return ''
+	if not auxinfo == None:
+		auxinfo_iter = auxinfo.iter()
 
-def getPackages(languageSelector):
+		for element in auxinfo_iter:
+			if element.tag == 'key' and element.text == 'BUILD':
+				try:
+					return auxinfo_iter.next().text
+				except StopIteration:
+					pass
+	else:
+		element = root.find('pkg-ref')
+		id = element.get('id')
+
+		if not id == None:
+			return id.split('.')[-1]
+
+	return 'Unknown'
+
+def getPackages(productType, targetPackageName, languageSelector):
 	list = []
-	data = getProduct()
+	data = getProduct(productType)
 	key = data[0]
 	product = data[1]
 	targetVolume = getTargetVolume()
@@ -313,9 +331,11 @@ def getPackages(languageSelector):
 		url = package.get('URL')
 		filename = basename(url)
 		targetFilename = os.path.join(targetPath, filename)
-		filesize = package.get('Size')
-		args = [url, targetFilename, filesize]
-		list.append(args)
+
+		if filename == targetPackageName or targetPackageName == "*":
+			filesize = package.get('Size')
+			args = [url, targetFilename, filesize]
+			list.append(args)
 
 	if not len(list) == 0:
 		print '\nQueued Downloads:'
@@ -381,7 +401,7 @@ def installSeedPackage(distributionFile, key, targetVolume):
 if __name__ == "__main__":
 	print 'installSeed.py v%s Copyright (c) 2017 by Pike R. Alpha\n' % scriptVersion
 	languageSelector = selectLanguage()
-	data = getPackages(languageSelector)
+	data = getPackages('install', '*', languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
