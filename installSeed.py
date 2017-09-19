@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -35,6 +35,8 @@
 #		   - whitespace, output (formatting) and indentation fixes.
 #		   - initial support for seed updates and downloads of a single packet.
 #		   - command line arguments added.
+#		   - buildID checks added.
+#		   - show confirmation text based on the current/seed buildID's.
 #
 
 import os
@@ -57,7 +59,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.1
+scriptVersion=3.2
 
 #
 # Setup seed program data.
@@ -209,12 +211,22 @@ def downloadDistributionFile(url, targetPath):
 
 	return distributionFile
 
+def getSystemVersionPlist(target):
+	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
+	if target == '':
+		return systemVersionPlist
+	else:
+		try:
+			return systemVersionPlist[target]
+		except IOError:
+			return 'None'
+
 def getSeedProgram():
 	version = getOSVersion()
 	name = getOSNameByOSVersion(version)
-	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
-	buildID = systemVersionPlist['ProductBuildVersion']
-	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, buildID)
+	systemVersionPlist = getSystemVersionPlist('')
+	currentBuildID = systemVersionPlist['ProductBuildVersion']
+	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, currentBuildID)
 
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
@@ -222,7 +234,7 @@ def getSeedProgram():
 		else:
 			seedEnrollmentPlist = plistlib.readPlist("/Users/Shared/.SeedEnrollment.plist")
 	except IOError:
-		return ''
+		return 'None'
 
 	seedProgram = seedEnrollmentPlist['SeedProgram']
 	print 'Seed Program Enrollment: ' + seedProgram
@@ -302,7 +314,7 @@ def getPackages(productType, targetPackageName, targetVolume, askForConfirmation
 	data = getProduct(productType)
 	key = data[0]
 	product = data[1]
-	
+
 	if targetVolume == '':
 		targetVolume = getTargetVolume()
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
@@ -316,16 +328,28 @@ def getPackages(productType, targetPackageName, targetVolume, askForConfirmation
 		distributionURL = distributions.get(languageSelector)
 		distributionFile = downloadDistributionFile(distributionURL, targetPath)
 
-	buildID = getBuildID(distributionFile)
-	print 'Found Install Package with BuildID (%s) and Key (%s)' % (buildID , key)
+	seedBuildID = getBuildID(distributionFile)
+	print 'Found Install Package with BuildID (%s) and Key (%s)' % (seedBuildID , key)
+	confirmationText = 'Are you sure that you want to continue [y/n] ? '
+	currentBuildID = getSystemVersionPlist('ProductBuildVersion')
+
+	if currentBuildID == seedBuildID:
+		print '\nWarning: Seed BuildID is the same as macOS on this Mac!'
+	elif seedBuildID < currentBuildID:
+		print '\nWarning: Seed BuildID is older than macOS on this Mac!'
+		confirmationText = 'Are you absolutely sure that you want to continue [y/n] ? '
+	elif seedBuildID > currentBuildID:
+		print 'Seed BuildID is newer than macOS on this Mac (Ok)'
+		confirmationText = 'Do you want to continue [y/n] ? '
 
 	if askForConfirmation == True:
-		print '\n'
+		print ''
 		while True:
-			confirm = raw_input('Do you want to continue [y/n] ? ').lower()
+			confirm = raw_input(confirmationText).lower()
 			if confirm in ('n', 'y'):
 				if confirm == 'n':
-					return ('', '', '')
+					print 'Aborting ...\n'
+					sys.exit(0)
 				elif confirm == 'y':
 					break
 			else:
@@ -457,7 +481,7 @@ def main(argv):
  	if key == "":
  		print "Error: Aborting ..."
  	elif target == "*":
-		if action == "install":
+		if action == "install" and target == "*":
 			installSeedPackage(distributionFile, key, targetVolume)
 			copyFiles(targetVolume, key)
 		elif action == "update":
