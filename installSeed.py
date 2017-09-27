@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.4 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -40,6 +40,7 @@
 #		   - unpack option -u [path] support added for downloaded files.
 #		   - script will now stop/abort when Ctrl+C is pressed.
 #		   - check for Beta seed added to copyFiles()
+#		   - option -m added to select a target macOS version.
 #
 
 import os
@@ -63,7 +64,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.3
+scriptVersion=3.4
 
 #
 # Setup seed program data.
@@ -251,11 +252,11 @@ def getCatalogData():
 	catalogReq = urllib2.urlopen(catalogURL)
 	return catalogReq.read()
 
-def getProduct(productType):
-	macOSVersion = '10.13'
+def getProduct(productType, macOSVersion):
 	catalogData = getCatalogData()
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
+	print 'Searching for macOS: %s' % macOSVersion
 
 	if productType == "install":
 		for key in products:
@@ -331,9 +332,14 @@ def getBuildID(distributionFile):
 
 	return 'Unknown'
 
-def getPackages(productType, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
+def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
 	list = []
-	data = getProduct(productType)
+	data = getProduct(productType, macOSVersion)
+
+	if data == None:
+		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ...\n" % macOSVersion)
+		sys.exit(-1)
+
 	key = data[0]
 	product = data[1]
 
@@ -478,11 +484,13 @@ def showUsage(error, arg):
 	print 'installSeed.py -a update -f <packagename> -t <volume>'
 	print 'installSeed.py -a update -f <packagename> -t <volume> -u [target path]'
 	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
+	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n'
 	print 'installSeed.py -a install'
 	print 'installSeed.py -a install -f <packagename>'
 	print 'installSeed.py -a install -f <packagename> -t <volume>'
 	print 'installSeed.py -a install -f <packagename> -t <volume> -u [target path]'
 	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
+	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n'
 	sys.exit(2)
 
 def main(argv):
@@ -494,11 +502,11 @@ def main(argv):
 	confirm = True;
 	unpackPackage = ''
 	languageSelector = selectLanguage()
+	macOSVersion = '10.13.1'
 
 	try:
-		opts, args = getopt.getopt(argv,"h:a:f:t:c:u:",["help","action","file","target","confirmation","unpack"])
+		opts, args = getopt.getopt(argv,"h:a:f:t:c:u:m:",["help","action","file","target","confirmation","unpack","mac"])
 	except getopt.GetoptError as error:
-		print 'shit'
 		print str(error)
 		showUsage(True, '')
 
@@ -521,10 +529,12 @@ def main(argv):
 				unpackPackage = arg
 			else:
 				showUsage(True, arg)
+		elif opt == '-m':
+			macOSVersion = arg
 		else:
 			showUsage(True, arg)
 
-	data = getPackages(action, target, volume, unpackPackage, confirm, languageSelector)
+	data = getPackages(action, macOSVersion, target, volume, unpackPackage, confirm, languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
