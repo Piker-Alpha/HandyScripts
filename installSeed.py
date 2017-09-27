@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -37,6 +37,9 @@
 #		   - command line arguments added.
 #		   - buildID checks added.
 #		   - show confirmation text based on the current/seed buildID's.
+#		   - unpack option -u [path] support added for downloaded files.
+#		   - script will now stop/abort when Ctrl+C is pressed.
+#		   - check for Beta seed added to copyFiles()
 #
 
 import os
@@ -47,6 +50,7 @@ import subprocess
 import urllib2
 import platform
 import getopt
+import signal
 
 from os.path import basename
 from Foundation import NSLocale
@@ -59,7 +63,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.2
+scriptVersion=3.3
 
 #
 # Setup seed program data.
@@ -286,6 +290,24 @@ def downloadFiles(argumentData):
 				break
 			file.write(chunk)
 
+def isBetaSeed(distributionFile):
+	tree = ElementTree.parse(distributionFile)
+	root = tree.getroot()
+	localization = root.find('localization')
+
+	if not localization == None:
+		localization_iter = localization.iter()
+	
+		for element in localization_iter:
+			if element.tag == 'strings':
+				strings = element.text.split(';')[0]
+				break
+
+		if 'beta' in strings.lower():
+			return True
+
+	return False
+
 def getBuildID(distributionFile):
 	tree = ElementTree.parse(distributionFile)
 	root = tree.getroot()
@@ -309,7 +331,7 @@ def getBuildID(distributionFile):
 
 	return 'Unknown'
 
-def getPackages(productType, targetPackageName, targetVolume, askForConfirmation, languageSelector):
+def getPackages(productType, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
 	list = []
 	data = getProduct(productType)
 	key = data[0]
@@ -367,8 +389,11 @@ def getPackages(productType, targetPackageName, targetVolume, askForConfirmation
 			args = [url, targetFilename, filesize]
 			list.append(args)
 
+			if not targetPackageName == "*":
+				break;
+
 	if not len(list) == 0:
-		print '\nQueued Downloads:'
+		print '\nQueued Download(s):'
 		for array in list:
 			print '%s [%s bytes]' % (basename(array[1]), array[2])
 		print ''
@@ -379,23 +404,35 @@ def getPackages(productType, targetPackageName, targetVolume, askForConfirmation
 		if targetPackageName != "*":
 			print '\nWarning: target package > %s < not found!' % targetPackageName
 
+	if not unpackPackage == '':
+		if os.path.isdir(unpackPackage):
+			print '\nError: Given target path already exists!'
+			print '       Please remove it or use a different path!\n\nAborting ...\n'
+			sys.exit(17)
+		print 'Expanding %s to %s' %(targetPackageName, unpackPackage)
+		subprocess.call(["sudo", "pkgutil", "--expand", targetFilename, unpackPackage])
+	
 	return (key, distributionFile, targetVolume)
 
-def copyFiles(targetVolume, key):
+def copyFiles(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
+	betaTag = ""
 
-	if os.path.isdir(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport"):
+	if isBetaSeed(distributionFile):
+		betaTag = " Beta"
+
+	if os.path.isdir(targetVolume + "/Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport"):
 		#
-		# Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 Beta.app needs?
+		# Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 (Beta).app needs?
 		#
-		if not os.path.exists(targetVolume + "/Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport/AppleDiagnostics.dmg"):
+		if not os.path.exists(targetVolume + "/Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport/AppleDiagnostics.dmg"):
 			#
 			# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
 			#
 			print '\nCopying: InstallESDDmg.pkg to the target location ...'
 			sourceFile = os.path.join(targetPath, "InstallESDDmg.pkg")
 			#print sourceFile
-			sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra Beta.app/Contents/SharedSupport")
+			sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport")
 			#print targetPath
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
 			#
@@ -421,7 +458,7 @@ def runInstaller(installerPkg, targetVolume):
 	print '\nRunning installer ...'
 	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
 
-def installSeedPackage(distributionFile, key, targetVolume):
+def installPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	installerPkg = os.path.join(targetPath, installerPackage)
 	print '\nCreating installer.pkg ...'
@@ -430,17 +467,21 @@ def installSeedPackage(distributionFile, key, targetVolume):
 	if os.path.exists(installerPkg):
 		runInstaller(installerPkg, targetVolume)
 
-def showUsage(arg):
-	if not arg == False:
+def showUsage(error, arg):
+	if  error == True and not arg == '':
 		print 'Error: invalid argument \'%s\' used\n' % arg
+	else:
+		print 'Error: invalid argument(s) used\n'
 	print 'Supported arguments:\n'
 	print 'installSeed.py -a update'
 	print 'installSeed.py -a update -f <packagename>'
 	print 'installSeed.py -a update -f <packagename> -t <volume>'
+	print 'installSeed.py -a update -f <packagename> -t <volume> -u [target path]'
 	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
 	print 'installSeed.py -a install'
 	print 'installSeed.py -a install -f <packagename>'
 	print 'installSeed.py -a install -f <packagename> -t <volume>'
+	print 'installSeed.py -a install -f <packagename> -t <volume> -u [target path]'
 	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
 	sys.exit(2)
 
@@ -451,29 +492,39 @@ def main(argv):
 	target = '*'
 	volume = ''
 	confirm = True;
+	unpackPackage = ''
 	languageSelector = selectLanguage()
 
 	try:
-		opts, args = getopt.getopt(argv,"h:a:f:t:c:",["action=","file="])
-	except getopt.GetoptError:
-		showUsage(False)
+		opts, args = getopt.getopt(argv,"h:a:f:t:c:u:",["help","action","file","target","confirmation","unpack"])
+	except getopt.GetoptError as error:
+		print 'shit'
+		print str(error)
+		showUsage(True, '')
 
 	for opt, arg in opts:
-		if opt == '-h':
-			showUsage(False)
-		elif opt == '-a':
+		if opt in ('-h', '--help'):
+			showUsage(False, '')
+		elif opt in ('-a', '-action'):
 			if arg in ('update', 'install'):
 				action = arg
 			else:
-				showUsage(arg)
+				showUsage(True, arg)
 		elif opt == '-f':
 			target = arg
 		elif opt == '-c':
 			confirm = arg
 		elif opt == '-t':
 			volume = arg
+		elif opt == '-u':
+			if target != '*':
+				unpackPackage = arg
+			else:
+				showUsage(True, arg)
+		else:
+			showUsage(True, arg)
 
-	data = getPackages(action, target, volume, confirm, languageSelector)
+	data = getPackages(action, target, volume, unpackPackage, confirm, languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
@@ -482,10 +533,12 @@ def main(argv):
  		print "Error: Aborting ..."
  	elif target == "*":
 		if action == "install" and target == "*":
-			installSeedPackage(distributionFile, key, targetVolume)
-			copyFiles(targetVolume, key)
+			installPackage(distributionFile, key, targetVolume)
+			copyFiles(distributionFile, key, targetVolume)
 		elif action == "update":
 			print 'Support for -a update is not implemented in v%s' % scriptVersion
 
 if __name__ == "__main__":
+	# Allows installSeed.py to exit quickly when pressing Ctrl+C.
+	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	main(sys.argv[1:])
