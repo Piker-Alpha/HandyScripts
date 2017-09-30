@@ -24,7 +24,7 @@ IOKit_bundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
 
 functions = [("IOServiceGetMatchingService", b"II@"),
 			 ("IOServiceMatching", b"@*"),
-			 ("IORegistryEntryCreateCFProperty", b"@I@@I"),
+			 ("IORegistryEntryCreateCFProperty", b"@I@@I")
 			 ]
 
 objc.loadBundleFunctions(IOKit_bundle, globals(), functions)
@@ -41,6 +41,14 @@ GLOB_FD_EXTENSION = "*.fd"
 class attrdict(dict):
 	__getattr__ = dict.__getitem__
 	__setattr__ = dict.__setitem__
+#
+# A wake up call for someone reading this ;)
+#
+xxxxxxXxxxxXXModels = ["MB51","MB52","MB61","MB71","MBP41","MBP51","MBP52","MBP53",
+					   "MBP55","MBP61","MBP71","MBP81","MBP91","MBP101","MBP102",
+					   "MBA21","MBA31","MBA41","MBA51","IM81","IM91","IM101","IM111",
+					   "IM112","IM121","IM131","MM32","MM41","MM51","MM61","MP61"
+					   ]
 
 boardIDModelIDs = [
 ["Mac-F22C8AC8", "MacBook6,1"],
