@@ -1,12 +1,20 @@
 #!/usr/bin/python
 
+#
+# Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
+#
+# Version 1.1 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+#
+# Updates:
+#		   - search scap files from 0xb0 onwards.
+
 import os
 import glob
 import sys
 import subprocess
 import binascii
 
-VERSION = 1.0
+VERSION = 1.1
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
@@ -172,13 +180,16 @@ def main():
 
 	for scapFile in scapFiles:
 		with open(scapFile, 'rb') as f:
-			f.seek(0xb4)
-			if f.read(8) == "$IBIOSI$":
-				biosID = f.read(0x40)
-				data = biosID.split('.')
-				modelID = getModelID(data[0])
-				boardID = getBoardID(modelID)
-				print '%20s | %14s |%s' % (boardID, modelID, biosID)
+			position = 0xb0
+			while not f.read(8) == "$IBIOSI$":
+				position+=4
+				f.seek(position)
+
+			biosID = f.read(0x40)
+			data = biosID.split('.')
+			modelID = getModelID(data[0])
+			boardID = getBoardID(modelID)
+			print '%20s | %14s |%s' % (boardID, modelID, biosID)
 
 	fdPath = os.path.join(FIRMWARE_PATH, PAYLOAD_PATH, GLOB_FD_EXTENSION)
 	fdFiles = getFDFiles(fdPath)
