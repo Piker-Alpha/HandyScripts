@@ -3,12 +3,13 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.2 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.3 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
 #		   - EFI ROM version check added.
 #		   - now highlights your board-id, model and EFI ROM version.
+#		   - now using a more reliable EFI ROM version check.
 
 import os
 import glob
@@ -23,14 +24,13 @@ IOKit_bundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
 
 functions = [("IOServiceGetMatchingService", b"II@"),
 			 ("IOServiceMatching", b"@*"),
-			 ("IOServiceNameMatching", b"@*"),
 			 ("IORegistryEntryCreateCFProperty", b"@I@@I"),
 			 ]
 
 objc.loadBundleFunctions(IOKit_bundle, globals(), functions)
 
-VERSION = 1.2
-IOREG = "/usr/sbin/ioreg"
+VERSION = 1.3
+EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
@@ -185,27 +185,16 @@ def getMyBoardID():
 	return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
 
 def getEFIVersion():
-	cmd = [IOREG]
-	cmd.extend(['-rw', '0'])
-	cmd.extend(['-p' 'IODeviceTree'])
-	cmd.extend(['-n' 'rom'])
+	cmd = [EFIUPDATER]
 	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, err = proc.communicate()
-	
-	if proc.returncode:
-		print "ERROR: ioreg -rw 0 -p IODeviceTree -n rom failed."
-	else:
-		lines = output.splitlines()
-		for line in lines:
-			# skip empty lines
-			if line.rstrip():
-				# strip leading whitespace
-				strippedLine = line.lstrip()
-				if strippedLine.startswith("\"version"):
-					# spit line into two
-					data = strippedLine.split(' = ')
-					return data[1].lstrip('<"').rstrip('">')
-	return 'Unknown'
+
+	lines = output.splitlines()
+	rawVersion = lines[0].split(': ')[1].strip(' ')
+	currentVersion = lines[1].split(': ')[1].strip('[ ]')
+	updateVersion = lines[2].split(': ')[1].strip('[ ]')
+
+	return (rawVersion, currentVersion, updateVersion)
 
 def getEFIDate(efiDate):
 	return efiDate.strip('\x00')
@@ -223,8 +212,8 @@ def main():
 	linePrinted = True
 	warnAboutEFIVersion = False
 	myBoardID = getMyBoardID()
-	myEFIVersion = getEFIVersion()
-	myEFIDate = myEFIVersion.split('.')[4]
+	rawVersion, currentVersion, updateVersion = getEFIVersion()
+
 	scapPath = os.path.join(FIRMWARE_PATH, PAYLOAD_PATH, GLOB_SCAP_EXTENSION)
 	scapFiles = getSCAPFiles(scapPath)
 
@@ -236,9 +225,8 @@ def main():
 				f.seek(position)
 
 			biosID = f.read(0x41)
-			data = biosID.split('.')
-			biosDate = getEFIDate(data[4])
-			modelID = getModelID(data[0])
+			model = biosID.split('.')[0]
+			modelID = getModelID(model)
 			boardID = getBoardID(modelID)
 
 			if boardID == myBoardID:
@@ -247,9 +235,8 @@ def main():
 				print '> %20s | %14s |%s <' % (boardID, modelID, biosID)
 				print '---------------------------------------------------------------------------'
 				linePrinted = True
-				if biosDate < myEFIDate:
+				if currentVersion < updateVersion:
 					warnAboutEFIVersion = True
-
 			else:
 				print '  %20s | %14s |%s' % (boardID, modelID, biosID)
 				linePrinted = False
@@ -268,9 +255,8 @@ def main():
 				f.seek(position, 2)
 
 			biosID = f.read(0x41)
-			data = biosID.split('.')
-			biosDate = getEFIDate(data[4])
-			modelID = getModelID(data[0])
+			model = biosID.split('.')[0]
+			modelID = getModelID(model)
 			boardID = getBoardID(modelID)
 
 			if boardID == myBoardID:
@@ -279,7 +265,7 @@ def main():
 				print '> %20s | %14s |%s <' % (boardID, modelID, biosID)
 				print '---------------------------------------------------------------------------'
 				linePrinted = True
-				if biosDate < myEFIDate:
+				if currentVersion < updateVersion:
 					warnAboutEFIVersion = True
 			else:
 				print '  %20s | %14s |%s' % (boardID, modelID, biosID)
@@ -288,7 +274,7 @@ def main():
 	if linePrinted == False:
 		print '---------------------------------------------------------------------------'
 	if warnAboutEFIVersion:
-		print '> WARNING: Your EFI ROM %21s is not up-to-date!! <' % myEFIVersion
+		print '> WARNING: Your EFI ROM %21s is not up-to-date!! <' % rawVersion
 		print '---------------------------------------------------------------------------'
 
 if __name__ == "__main__":
