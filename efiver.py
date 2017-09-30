@@ -222,7 +222,7 @@ def main():
 
 	linePrinted = True
 	warnAboutEFIVersion = False
-	myBoardID = "Mac-BE088AF8C5EB4FA2" #getMyBoardID()
+	myBoardID = getMyBoardID()
 	myEFIVersion = getEFIVersion()
 	myEFIDate = myEFIVersion.split('.')[4]
 	scapPath = os.path.join(FIRMWARE_PATH, PAYLOAD_PATH, GLOB_SCAP_EXTENSION)
