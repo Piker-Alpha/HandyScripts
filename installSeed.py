@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.5 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -42,6 +42,7 @@
 #		   - check for Beta seed added to copyFiles()
 #		   - option -m added to select a target macOS version.
 #		   - error handling for urllib2.urlopen() added.
+#		   - fixed two typos.
 #
 
 import os
@@ -65,7 +66,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.5
+scriptVersion=3.6
 
 #
 # Setup seed program data.
@@ -201,8 +202,8 @@ def getTargetVolume():
 def downloadDistributionFile(url, targetPath):
 	try:
 		req = urllib2.urlopen(url)
-	except URLError:
-		print >> sys.sterr("\nERROR: opening of (%s) failed. Aborting ...\n" % url)
+	except urllib2.URLError:
+		print >> sys.stderr("\nERROR: opening of (%s) failed. Aborting ...\n" % url)
 
 	filename = basename(url)
 	filesize = req.info().getheader('Content-Length')
