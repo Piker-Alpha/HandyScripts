@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -16,6 +16,7 @@
 #		   - now reads the supported board-id's from the firmware payload files.
 #		   - changed version number to v1.5
 #		   - support for older version of efiupdater added.
+#		   - now using the right patch for support of older versions of efiupdater.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -72,7 +73,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 1.6
+VERSION = 1.7
 IOREG = "/usr/sbin/ioreg"
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
@@ -344,10 +345,11 @@ def getEFIVersionsFromEFIUpdater():
 	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, err = proc.communicate()
 	lines = output.splitlines()
+
 	if len(lines) == 2:
-		rawVersion = getRawEFIVersion()
-	else:
-		rawVersion = lines[0].split(': ')[1].strip(' ')
+		lines.insert(0, getRawEFIVersion())
+
+	rawVersion = lines[0].split(': ')[1].strip(' ')
 	currentVersion = lines[1].split(': ')[1].strip('[ ]')
 	updateVersion = lines[2].split(': ')[1].strip('[ ]')
 
