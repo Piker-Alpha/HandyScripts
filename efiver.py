@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -15,6 +15,7 @@
 #		   - the output of the scrit is now a lot quicker.
 #		   - now reads the supported board-id's from the firmware payload files.
 #		   - changed version number to v1.5
+#		   - support for older version of efiupdater added.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -71,7 +72,8 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 1.5
+VERSION = 1.6
+IOREG = "/usr/sbin/ioreg"
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
@@ -313,13 +315,39 @@ def getModelByBoardID(boardID):
 def getMyBoardID():
 	return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
 
+def getRawEFIVersion():
+	cmd = [IOREG]
+	cmd.extend(['-rw', '0'])
+	cmd.extend(['-p' 'IODeviceTree'])
+	cmd.extend(['-n' 'rom'])
+	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	output, err = proc.communicate()
+	
+	if proc.returncode:
+		print "ERROR: ioreg -rw 0 -p IODeviceTree -n rom failed."
+	else:
+		lines = output.splitlines()
+		for line in lines:
+			# skip empty lines.
+			if line.rstrip():
+				# strip leading whitespace.
+				strippedLine = line.lstrip()
+				if strippedLine.startswith("\"version"):
+					# spit line into two parts.
+					data = strippedLine.split(' = ')
+					return data[1].lstrip('<"').rstrip('">')
+
+	return 'Unknown'
+
 def getEFIVersionsFromEFIUpdater():
 	cmd = [EFIUPDATER]
 	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, err = proc.communicate()
-
 	lines = output.splitlines()
-	rawVersion = lines[0].split(': ')[1].strip(' ')
+	if len(lines) == 2:
+		rawVersion = getRawEFIVersion()
+	else:
+		rawVersion = lines[0].split(': ')[1].strip(' ')
 	currentVersion = lines[1].split(': ')[1].strip('[ ]')
 	updateVersion = lines[2].split(': ')[1].strip('[ ]')
 
@@ -355,6 +383,14 @@ def showSystemData(linePrinted, boardID, modelID, biosID):
 	print '---------------------------------------------------------------------------'
 	return True
 
+def shouldWarnAboutUpdate(rawVersion, biosID):
+	myBiosDate = rawVersion.split('.')[4]
+	biosDate = biosID.split('.')[4].replace('\x00', '')
+	if myBiosDate < biosDate:
+		return True
+
+	return False
+
 def main():
 	sys.stdout.write("\x1b[2J\x1b[H")
 
@@ -362,7 +398,7 @@ def main():
 		launchInstallSeed(FIRMWARE_PATH)
 
 	print '---------------------------------------------------------------------------'
-	print '          EFIver.py v%s Copyright (c) 2017 by Pike R. Alpha' % VERSION
+	print '         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % VERSION
 	print '---------------------------------------------------------------------------'
 
 	linePrinted = True
@@ -390,7 +426,7 @@ def main():
 						modelID = getModelByBoardID(boardID)
 						if boardID == myBoardID:
 							linePrinted = showSystemData(linePrinted, boardID, modelID, biosID)
-							if currentVersion < updateVersion:
+							if shouldWarnAboutUpdate(rawVersion, biosID):
 								warnAboutEFIVersion = True
 						else:
 							print '  %20s | %14s |%s' % (boardID, modelID, biosID)
@@ -399,7 +435,7 @@ def main():
 					boardID, modelID, biosID = getEFIData(f, 0xb0)
 					if boardID == myBoardID:
 						linePrinted = showSystemData(linePrinted, boardID, modelID, biosID)
-						if currentVersion < updateVersion:
+						if shouldWarnAboutUpdate(rawVersion, biosID):
 							warnAboutEFIVersion = True
 					else:
 						print '  %20s | %14s |%s' % (boardID, modelID, biosID)
