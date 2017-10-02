@@ -347,7 +347,8 @@ def getEFIVersionsFromEFIUpdater():
 	lines = output.splitlines()
 
 	if len(lines) == 2:
-		lines.insert(0, getRawEFIVersion())
+		rawString = "Raw EFI Version string: %s" % getRawEFIVersion()
+		lines.insert(0, rawString)
 
 	rawVersion = lines[0].split(': ')[1].strip(' ')
 	currentVersion = lines[1].split(': ')[1].strip('[ ]')
