@@ -1,9 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.6 - Copyright (c) 2017 by Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -43,6 +43,40 @@
 #		   - option -m added to select a target macOS version.
 #		   - error handling for urllib2.urlopen() added.
 #		   - fixed two typos.
+#		   - white space only changes.
+#		   - fixed NSLocale incompatibility issues (verified with El Capitan).
+#		   - license added.
+#		   - shebang line changed.
+#
+# License:
+#		   -  BSD 3-Clause License
+#
+# Copyright (c) 2017 by Dr. Pike R. Alpha, All Rights Reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice,
+#   this list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the name(s) of its
+#   contributor(s) may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
 import os
@@ -66,7 +100,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.6
+scriptVersion=3.7
 
 #
 # Setup seed program data.
@@ -129,9 +163,11 @@ tmpDirectory="tmp"
 #
 installerPackage="installer.pkg"
 
+
 def getOSVersion():
 	version = platform.mac_ver()
 	return float('.'.join(version[0].split('.')[:2]))
+
 
 def getOSNameByOSVersion(version):
 	switcher = {
@@ -152,15 +188,31 @@ def getOSNameByOSVersion(version):
 	}
 	return switcher.get(version, "Unknown")
 
+
 def getICUName(id):
 	return icuData.get(id, icuData['en'])
 
+
 def selectLanguage():
-	locale = NSLocale.currentLocale()
-	languageCode = NSLocale.languageCode(locale)
-	id = languageCode
-	countryCode = NSLocale.countryCode(locale)
-	localeIdentifier = NSLocale.localeIdentifier(locale)
+	macOSVersion = getOSVersion()
+	
+	if macOSVersion > 10.11:
+		locale = NSLocale.currentLocale()
+		languageCode = NSLocale.languageCode(locale)
+		id = languageCode
+		countryCode = NSLocale.countryCode(locale)
+		localeIdentifier = NSLocale.localeIdentifier(locale)
+	else:
+		cmd = ["defaults", 'read', '.GlobalPreferences', 'AppleLocale']
+		proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		output, err = proc.communicate()
+
+		if proc.returncode:
+			print >> sys.stderr("ERROR: defaults read .GlobalPreferences AppleLocale failed.")
+			sys.exit(-1)
+		else:
+			localeIdentifier = output
+			id = languageCode = output.split('_')[0]
 	#
 	# Special cases for Apple's SU.
 	#
@@ -175,6 +227,7 @@ def selectLanguage():
 			id = "zh_CN"
 
 	return getICUName(id)
+
 
 def getTargetVolume():
 	index = 0
@@ -199,6 +252,7 @@ def getTargetVolume():
 
 	return targetVolumes[int(volumeNumber)]
 
+
 def downloadDistributionFile(url, targetPath):
 	try:
 		req = urllib2.urlopen(url)
@@ -222,6 +276,7 @@ def downloadDistributionFile(url, targetPath):
 
 	return distributionFile
 
+
 def getSystemVersionPlist(target):
 	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
 	if target == '':
@@ -231,6 +286,7 @@ def getSystemVersionPlist(target):
 			return systemVersionPlist[target]
 		except IOError:
 			return 'None'
+
 
 def getSeedProgram():
 	version = getOSVersion()
@@ -251,6 +307,7 @@ def getSeedProgram():
 	print 'Seed Program Enrollment: ' + seedProgram
 	return seedProgram
 
+
 def getCatalogData():
 	seedProgram = getSeedProgram()
 	catalog = seedProgramData.get(seedProgram, seedProgramData['PublicSeed'])
@@ -262,6 +319,7 @@ def getCatalogData():
 		sys.exit(-1)
 
 	return catalogReq.read()
+
 
 def getProduct(productType, macOSVersion):
 	catalogData = getCatalogData()
@@ -287,6 +345,7 @@ def getProduct(productType, macOSVersion):
 					if extendedMetaInfo['ProductType'] == 'macOS' and extendedMetaInfo['ProductVersion'] == macOSVersion:
 						return (key, products[key])
 
+
 def downloadFiles(argumentData):
 	url = argumentData[0]
 	targetFilename = argumentData[1]
@@ -307,6 +366,7 @@ def downloadFiles(argumentData):
 				break
 			file.write(chunk)
 
+
 def isBetaSeed(distributionFile):
 	tree = ElementTree.parse(distributionFile)
 	root = tree.getroot()
@@ -324,6 +384,7 @@ def isBetaSeed(distributionFile):
 			return True
 
 	return False
+
 
 def getBuildID(distributionFile):
 	tree = ElementTree.parse(distributionFile)
@@ -347,6 +408,7 @@ def getBuildID(distributionFile):
 			return id.split('.')[-1]
 
 	return 'Unknown'
+
 
 def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
 	list = []
@@ -436,6 +498,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 	
 	return (key, distributionFile, targetVolume)
 
+
 def copyFiles(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	betaTag = ""
@@ -476,9 +539,11 @@ def copyFiles(distributionFile, key, targetVolume):
 			sourceFile = os.path.join(targetPath, "BaseSystem.chunklist")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 
+
 def runInstaller(installerPkg, targetVolume):
 	print '\nRunning installer ...'
 	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
+
 
 def installPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
@@ -488,6 +553,7 @@ def installPackage(distributionFile, key, targetVolume):
 
 	if os.path.exists(installerPkg):
 		runInstaller(installerPkg, targetVolume)
+
 
 def showUsage(error, arg):
 	if  error == True and not arg == '':
@@ -509,15 +575,17 @@ def showUsage(error, arg):
 	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n'
 	sys.exit(2)
 
+
 def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
-	print 'installSeed.py v%s Copyright (c) 2017 by Pike R. Alpha\n' % scriptVersion
+	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha\n' % scriptVersion
 	action = 'install'
 	target = '*'
 	volume = ''
 	confirm = True;
 	unpackPackage = ''
 	languageSelector = selectLanguage()
+	print 'languageSelector: %s' % languageSelector
 	macOSVersion = '10.13.1'
 
 	try:
@@ -563,6 +631,7 @@ def main(argv):
 			copyFiles(distributionFile, key, targetVolume)
 		elif action == "update":
 			print 'Support for -a update is not implemented in v%s' % scriptVersion
+
 
 if __name__ == "__main__":
 	# Allows installSeed.py to exit quickly when pressing Ctrl+C.
