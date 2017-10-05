@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -17,6 +17,8 @@
 #		   - changed version number to v1.5
 #		   - support for older version of efiupdater added.
 #		   - now using the right patch for support of older versions of efiupdater.
+#		   - whitespace changes.
+#		   - now checking both UUID's (for old and new hardware models).
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -73,7 +75,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 1.7
+VERSION = 1.8
 IOREG = "/usr/sbin/ioreg"
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
@@ -82,8 +84,6 @@ PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
 
 GLOB_SCAP_EXTENSION = "*.scap"
 GLOB_FD_EXTENSION = "*.fd"
-
-MATCHING_BOARD_IDS_GUID = "4a251f7857c4135d92751bf5d56e0724"
 
 oldTypeFWModels = [
  "MB51","MB52","MB61","MB71","MBP41","MBP51","MBP52","MBP53",
@@ -194,6 +194,7 @@ def getInstallSeed(scriptDirectory):
 		mode |= stat.S_IXUSR
 		os.fchmod(f.fileno(), stat.S_IMODE(mode))
 
+
 def launchInstallSeed(unpackPath):
 	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
 	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
@@ -215,8 +216,10 @@ def launchInstallSeed(unpackPath):
 	except OSError, error:
 		print >> sys.stderr, ("ERROR: launch of installSeed.py failed with %s." % error)
 
+
 def getFirmwareFiles(path):
 	return glob.glob(path)
+
 
 def shouldPerformGUIDCheck(filename):
 	for id in oldTypeFWModels:
@@ -224,7 +227,8 @@ def shouldPerformGUIDCheck(filename):
 			return False
 	return True
 
-def getBoardIDs(f, position):
+
+def getBoardIDs(f, position, trailingBytes):
 	boardIDs = []
 	count = 15
 	# skip GUID + the the first four bytes of the structure.
@@ -240,8 +244,11 @@ def getBoardIDs(f, position):
 			break;
 		else:
 			boardIDs.append("Mac-%s" % boardID)
-
+		#
+		if trailingBytes == True:
+			position+=2
 	return boardIDs
+
 
 def getEFIVersion(f, position):
 	f.seek(position, 0)
@@ -257,12 +264,14 @@ def getEFIVersion(f, position):
 
 	return f.read(0x41)
 
+
 def getEFIData(f, position):
 	biosID = getEFIVersion(f, position)
 	model = biosID.split('.')[0]
 	modelID = getModelID(model)
 	boardID = getBoardIDByModel(modelID)
 	return (boardID, modelID, biosID)
+
 
 def getModelNumberString(decimals):
 	length = len(decimals)
@@ -272,6 +281,7 @@ def getModelNumberString(decimals):
 	elif length == 3:
 		strData = decimals[0] + decimals[1] + ',' + decimals[2]
 	return strData
+
 
 def getModelID(id):
 	did = id.decode('utf-16')
@@ -299,12 +309,14 @@ def getModelID(id):
 	
 	return 'Unknown'
 
+
 def getBoardIDByModel(modelID):
 	for x in boardIDModelIDs:
 		if modelID == x[1]:
 			return x[0]
 
 	return 'Unknown'
+
 
 def getModelByBoardID(boardID):
 	for x in boardIDModelIDs:
@@ -313,8 +325,10 @@ def getModelByBoardID(boardID):
 
 	return 'Unknown'
 
+
 def getMyBoardID():
 	return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
+
 
 def getRawEFIVersion():
 	cmd = [IOREG]
@@ -340,6 +354,7 @@ def getRawEFIVersion():
 
 	return 'Unknown'
 
+
 def getEFIVersionsFromEFIUpdater():
 	cmd = [EFIUPDATER]
 	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -356,28 +371,41 @@ def getEFIVersionsFromEFIUpdater():
 
 	return (rawVersion, currentVersion, updateVersion)
 
+
 def getEFIDate(efiDate):
 	return efiDate.strip('\x00')
+
 
 def searchForGUID(f, filesize):
 	position = 0x98
 	f.seek(position, 0)
-	if not binascii.hexlify(f.read(16)) == MATCHING_BOARD_IDS_GUID:
-		position = 0x1048
-		f.seek(position, 0)
-		if not binascii.hexlify(f.read(16)) == MATCHING_BOARD_IDS_GUID:
-			position = 0
+	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+	if  binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+		return position
+
+	position = 0x1200
+	f.seek(position, 0)
+	# Check for Apple UUID(11380FF9-CFBF-5CD5-997E-83FD089569F0)
+	if binascii.hexlify(f.read(16)) == "f90f3811bfcfd55c997e83fd089569f0":
+		return position
+
+	position = 0x1048
+	f.seek(position, 0)
+	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+	if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+		return position
+
+	position = (filesize-8)
+	f.seek(position, 0)
+	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+	while not binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+		if position > 8:
+			position-=4
 			f.seek(position, 0)
-		else:
-			position = 0
-			f.seek(position, 0)
-			while not binascii.hexlify(f.read(16)) == MATCHING_BOARD_IDS_GUID:
-				if position < (filesize-8):
-					position+=4
-					f.seek(position, 0)
 
 	#print 'GUID found @ byte 0x%x' % position
 	return position
+
 
 def showSystemData(linePrinted, boardID, modelID, biosID):
 	if linePrinted == False:
@@ -386,6 +414,7 @@ def showSystemData(linePrinted, boardID, modelID, biosID):
 	print '---------------------------------------------------------------------------'
 	return True
 
+
 def shouldWarnAboutUpdate(rawVersion, biosID):
 	myBiosDate = rawVersion.split('.')[4]
 	biosDate = biosID.split('.')[4].replace('\x00', '')
@@ -393,6 +422,7 @@ def shouldWarnAboutUpdate(rawVersion, biosID):
 		return True
 
 	return False
+
 
 def main():
 	sys.stdout.write("\x1b[2J\x1b[H")
@@ -424,7 +454,10 @@ def main():
 						position = filesize-44
 					biosID = getEFIVersion(f, position)
 					position = searchForGUID(f, position)
-					boardIDs = getBoardIDs(f, position)
+					trailingBytes = False
+					if position == 0x1200:
+						trailingBytes = True
+					boardIDs = getBoardIDs(f, position, trailingBytes)
 					for boardID in boardIDs:
 						modelID = getModelByBoardID(boardID)
 						if boardID == myBoardID:
@@ -449,6 +482,7 @@ def main():
 	if warnAboutEFIVersion:
 		print '> WARNING: Your EFI ROM %21s is not up-to-date!! <' % rawVersion
 		print '---------------------------------------------------------------------------'
+
 
 if __name__ == "__main__":
 	main()
