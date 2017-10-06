@@ -1,9 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.9 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -20,6 +20,9 @@
 #		   - whitespace changes.
 #		   - now checking both UUID's (for old and new hardware models).
 #		   - read EFI version from IODeviceTree:/rom.
+#		   - check for Mac-F221DCC8/MacPro5,1 Apple UUID added.
+#		   - made some preparation for the next major release.
+#		   - shebang line changed.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -77,11 +80,12 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 1.9
+VERSION = 2.0
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
+#TMP_IA_PATH = "/tmp/InstallAssistantAuto"
 
 GLOB_SCAP_EXTENSION = "*.scap"
 GLOB_FD_EXTENSION = "*.fd"
@@ -169,6 +173,7 @@ boardIDModelIDs = [
 #x = uuid.UUID(bytes_le='\x4A\x25\x1F\x78\x57\xC4\x13\x5D\x92\x75\x1B\xF5\xD5\x6E\x07\x24')
 #print uuid.UUID(x.hex)
 
+
 def getInstallSeed(scriptDirectory):
 	URL = "https://raw.githubusercontent.com/Piker-Alpha/HandyScripts/master/installSeed.py"
 	try:
@@ -196,18 +201,25 @@ def getInstallSeed(scriptDirectory):
 		os.fchmod(f.fileno(), stat.S_IMODE(mode))
 
 
-def launchInstallSeed(unpackPath):
+def checkForInstallSeed():
 	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
 	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
 	# download installSeed if it isn't there
 	if not os.path.exists(helperScript):
 		getInstallSeed(scriptDirectory)
+
+	return helperScript
+
+
+def launchInstallSeed(action, targetPackage, unpackPath):
+	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
+	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
 	#
 	# installSeed -a update -f FirmwareUpdate.pkg -t / -c 0 -u /tmp/FirmwareUpdate
 	#
 	cmd = [helperScript]
-	cmd.extend(['-a', 'update'])
-	cmd.extend(['-f', 'FirmwareUpdate.pkg'])
+	cmd.extend(['-a', action])
+	cmd.extend(['-f', targetPackage])
 	cmd.extend(['-t', '/'])
 	cmd.extend(['-c', '0'])
 	cmd.extend(['-u', unpackPath])
@@ -357,32 +369,40 @@ def getEFIDate(efiDate):
 	return efiDate.strip('\x00')
 
 
-def searchForGUID(f, filesize):
-	position = 0x98
-	f.seek(position, 0)
-	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-	if  binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
-		return position
+def searchForGUID(f, filesize, boardID):
+	# Check for MacPro5,1 because it uses a different UUID.
+	if boardID == "Mac-F221DCC8":
+		# Check for Apple UUID(C3E36D09-8294-4B97-A857-D5288FE33E28)
+		while not binascii.hexlify(f.read(16)) == "096de3c39482974ba857d5288fe33e28":
+			if position < (filesize-8):
+				position+=4
+				f.seek(position, 0)
+	else:
+		position = 0x98
+		f.seek(position, 0)
+		# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+		if  binascii.hexlify(f.read(16)) == "4a251f78 57c4 135d 9275 1bf5d56e0724":
+			return position
 
-	position = 0x1200
-	f.seek(position, 0)
-	# Check for Apple UUID(11380FF9-CFBF-5CD5-997E-83FD089569F0)
-	if binascii.hexlify(f.read(16)) == "f90f3811bfcfd55c997e83fd089569f0":
-		return position
+		position = 0x1200
+		f.seek(position, 0)
+		# Check for Apple UUID(11380FF9-CFBF-5CD5-997E-83FD089569F0)
+		if binascii.hexlify(f.read(16)) == "f90f3811bfcfd55c997e83fd089569f0":
+			return position
 
-	position = 0x1048
-	f.seek(position, 0)
-	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-	if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
-		return position
+		position = 0x1048
+		f.seek(position, 0)
+		# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+		if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+			return position
 
-	position = (filesize-8)
-	f.seek(position, 0)
-	# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-	while not binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
-		if position > 8:
-			position-=4
-			f.seek(position, 0)
+		position = (filesize-8)
+		f.seek(position, 0)
+		# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
+		while not binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+			if position > 8:
+				position-=4
+				f.seek(position, 0)
 
 	#print 'GUID found @ byte 0x%x' % position
 	return position
@@ -404,12 +424,21 @@ def shouldWarnAboutUpdate(rawVersion, biosID):
 
 	return False
 
+#def extractPayloadToDirectory()
+
+
+#def copyFirmwareUpdates()
+
 
 def main():
 	sys.stdout.write("\x1b[2J\x1b[H")
 
 	if not os.path.exists(FIRMWARE_PATH):
-		launchInstallSeed(FIRMWARE_PATH)
+		checkForInstallSeed()
+		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_PATH)
+		#launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH)
+		#extractPayloadToDirectory()
+		#copyFirmwareUpdates()
 
 	print '---------------------------------------------------------------------------'
 	print '         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % VERSION
@@ -434,7 +463,7 @@ def main():
 					else:
 						position = filesize-44
 					biosID = getEFIVersion(f, position)
-					position = searchForGUID(f, position)
+					position = searchForGUID(f, position, myBoardID)
 					trailingBytes = False
 					if position == 0x1200:
 						trailingBytes = True
