@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.9 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -19,6 +19,7 @@
 #		   - now using the right patch for support of older versions of efiupdater.
 #		   - whitespace changes.
 #		   - now checking both UUID's (for old and new hardware models).
+#		   - read EFI version from IODeviceTree:/rom.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -70,13 +71,13 @@ IOKitBundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
 functions = [
  ("IOServiceGetMatchingService", b"II@"),
  ("IOServiceMatching", b"@*"),
+ ("IORegistryEntryFromPath", b"II*"),
  ("IORegistryEntryCreateCFProperty", b"@I@@I")
 ]
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 1.8
-IOREG = "/usr/sbin/ioreg"
+VERSION = 1.9
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
@@ -85,7 +86,7 @@ PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
 GLOB_SCAP_EXTENSION = "*.scap"
 GLOB_FD_EXTENSION = "*.fd"
 
-oldTypeFWModels = [
+oldStyleFWModels = [
  "MB51","MB52","MB61","MB71","MBP41","MBP51","MBP52","MBP53",
  "MBP55","MBP61","MBP71","MBP81","MBP91","MBP101","MBP102",
  "MBA21","MBA31","MBA41","MBA51","IM81","IM91","IM101","IM111",
@@ -210,7 +211,7 @@ def launchInstallSeed(unpackPath):
 	cmd.extend(['-t', '/'])
 	cmd.extend(['-c', '0'])
 	cmd.extend(['-u', unpackPath])
-	
+
 	try:
 		retcode = subprocess.call(cmd)
 	except OSError, error:
@@ -222,9 +223,10 @@ def getFirmwareFiles(path):
 
 
 def shouldPerformGUIDCheck(filename):
-	for id in oldTypeFWModels:
-		if filename.startswith(id):
-			return False
+	id = filename.split('_')[0]
+
+	if id in oldStyleFWModels:
+		return False
 	return True
 
 
@@ -331,28 +333,7 @@ def getMyBoardID():
 
 
 def getRawEFIVersion():
-	cmd = [IOREG]
-	cmd.extend(['-rw', '0'])
-	cmd.extend(['-p' 'IODeviceTree'])
-	cmd.extend(['-n' 'rom'])
-	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	output, err = proc.communicate()
-	
-	if proc.returncode:
-		print "ERROR: ioreg -rw 0 -p IODeviceTree -n rom failed."
-	else:
-		lines = output.splitlines()
-		for line in lines:
-			# skip empty lines.
-			if line.rstrip():
-				# strip leading whitespace.
-				strippedLine = line.lstrip()
-				if strippedLine.startswith("\"version"):
-					# spit line into two parts.
-					data = strippedLine.split(' = ')
-					return data[1].lstrip('<"').rstrip('">')
-
-	return 'Unknown'
+	IORegistryEntryCreateCFProperty(IORegistryEntryFromPath(0, "IODeviceTree:/rom"), "version", None, 0)
 
 
 def getEFIVersionsFromEFIUpdater():
