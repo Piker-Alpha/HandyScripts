@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -26,6 +26,8 @@
 #		   - now also checks the firmware directory of the installer.
 #		   - use filename instead of myBoardID (for MacPro5,1).
 #		   - removed spaces in one of the Apple UUID's (done to verify the UUID).
+#		   - removed a spurious semicolon.
+#		   - convert board-id to string and remove the trailing null byte.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -85,7 +87,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.1
+VERSION = 2.2
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -254,7 +256,7 @@ def getBoardIDs(f, position, trailingBytes):
 		f.seek(position, 0)
 		boardID = binascii.hexlify(f.read(8)).upper()
 		if boardID == "FFFFFFFFFFFFFFFF":
-			break;
+			break
 		else:
 			boardIDs.append("Mac-%s" % boardID)
 		#
@@ -340,7 +342,9 @@ def getModelByBoardID(boardID):
 
 
 def getMyBoardID():
-	return IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
+	data = IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
+	if data and len(data):
+		return str(data).strip('\x00')
 
 
 def getRawEFIVersion():
