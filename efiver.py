@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -23,6 +23,9 @@
 #		   - check for Mac-F221DCC8/MacPro5,1 Apple UUID added.
 #		   - made some preparation for the next major release.
 #		   - shebang line changed.
+#		   - now also checks the firmware directory of the installer.
+#		   - use filename instead of myBoardID (for MacPro5,1).
+#		   - removed spaces in one of the Apple UUID's (done to verify the UUID).
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -63,6 +66,8 @@ import binascii
 import objc
 import stat
 import urllib2
+import struct
+import shutil
 #import uuid
 
 from os.path import basename
@@ -80,21 +85,23 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.0
+VERSION = 2.1
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
-FIRMWARE_PATH = "/tmp/FirmwareUpdate"
+FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
 PAYLOAD_PATH = "Scripts/Tools/EFIPayloads"
-#TMP_IA_PATH = "/tmp/InstallAssistantAuto"
+TMP_IA_PATH = "/tmp/InstallAssistantAuto"
+TMP_PAYLOAD = "/tmp/payload"
+FIRMWARE_PATH = "Contents/Resources/Firmware"
 
 GLOB_SCAP_EXTENSION = "*.scap"
 GLOB_FD_EXTENSION = "*.fd"
 
 oldStyleFWModels = [
  "MB51","MB52","MB61","MB71","MBP41","MBP51","MBP52","MBP53",
- "MBP55","MBP61","MBP71","MBP81","MBP91","MBP101","MBP102",
- "MBA21","MBA31","MBA41","MBA51","IM81","IM91","IM101","IM111",
- "IM112","IM121","IM131","MM32","MM41","MM51","MM61","MP61"
+ "MBP55","MBP61","MBP71","MBP81","MBP91","MBP101","MBP102","MBA21",
+ "MBA31","MBA41","MBA51","IM81","IM91","IM101","IM111","IM112",
+ "IM121","IM131","MM32","MM41","MM51","MM61","MP51","MP61"
 ]
 
 boardIDModelIDs = [
@@ -201,19 +208,11 @@ def getInstallSeed(scriptDirectory):
 		os.fchmod(f.fileno(), stat.S_IMODE(mode))
 
 
-def checkForInstallSeed():
-	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
-	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
-	# download installSeed if it isn't there
-	if not os.path.exists(helperScript):
-		getInstallSeed(scriptDirectory)
-
-	return helperScript
-
-
 def launchInstallSeed(action, targetPackage, unpackPath):
 	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
 	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
+	if not os.path.exists(helperScript):
+		getInstallSeed(scriptDirectory)
 	#
 	# installSeed -a update -f FirmwareUpdate.pkg -t / -c 0 -u /tmp/FirmwareUpdate
 	#
@@ -369,9 +368,10 @@ def getEFIDate(efiDate):
 	return efiDate.strip('\x00')
 
 
-def searchForGUID(f, filesize, boardID):
+def searchForGUID(f, filesize, filename):
 	# Check for MacPro5,1 because it uses a different UUID.
-	if boardID == "Mac-F221DCC8":
+	if filename.startswith('MP51'):
+		position = 0
 		# Check for Apple UUID(C3E36D09-8294-4B97-A857-D5288FE33E28)
 		while not binascii.hexlify(f.read(16)) == "096de3c39482974ba857d5288fe33e28":
 			if position < (filesize-8):
@@ -381,7 +381,7 @@ def searchForGUID(f, filesize, boardID):
 		position = 0x98
 		f.seek(position, 0)
 		# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-		if  binascii.hexlify(f.read(16)) == "4a251f78 57c4 135d 9275 1bf5d56e0724":
+		if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
 			return position
 
 		position = 0x1200
@@ -424,21 +424,80 @@ def shouldWarnAboutUpdate(rawVersion, biosID):
 
 	return False
 
-#def extractPayloadToDirectory()
+
+def convertPayloadToZX(payloadPath):
+	with open(payloadPath, 'rb') as sourceFile:
+		# Payload Binary ZX magic found?
+		if sourceFile.read(4) != 'pbzx':
+			return False
+		with open("/tmp/payload.zx", 'wb') as outFile:
+			sourceFile.seek(16, 1)
+			data64 = sourceFile.read(8)
+			blockSize = struct.unpack('>Q', data64)[0]
+			outFile.write(sourceFile.read(blockSize))
+			sourceFile.seek(8, 1)
+			data64 = sourceFile.read(8)
+			blockSize = struct.unpack('>Q', data64)[0]
+			outFile.write(sourceFile.read(blockSize))
+		# check the footer of the created file.
+		with open("/tmp/payload.zx", 'rb') as checkFile:
+			checkFile.seek(-2, 2)
+			if checkFile.read(2) == 'YZ':
+				return True
+	return False
 
 
-#def copyFirmwareUpdates()
+def extractPayloadToDirectory():
+	payloadPath = os.path.join(TMP_IA_PATH, "Payload")
+	if not os.path.exists(payloadPath):
+		return False
+	if not convertPayloadToZX(payloadPath):
+		return False
+	if os.path.exists(TMP_PAYLOAD):
+		shutil.rmtree(TMP_PAYLOAD)
+	os.makedirs(TMP_PAYLOAD)
+	cmd = ['cd /tmp/payload && /usr/bin/cpio -iF /tmp/payload.zx --quiet']
+
+	try:
+		retcode = subprocess.call(cmd, shell=True)
+		try:
+			os.remove("/tmp/payload.zx")
+		except OSError:
+			pass
+		return True
+	except OSError, error:
+		print >> sys.stderr, ("ERROR: cpio -iF /tmp/payload.zx --quiet failed with %s." % error)
+		sys.exit(0)
+
+	return False
+
+
+def copyFirmwareUpdates():
+	targetFolder = glob.glob(TMP_PAYLOAD + "/*")[0]
+	targetFileTypes = [GLOB_SCAP_EXTENSION, GLOB_FD_EXTENSION]
+
+	for fileType in targetFileTypes:
+		targetFiles = os.path.join(targetFolder, FIRMWARE_PATH, fileType)
+		firmwareFiles = getFirmwareFiles(targetFiles)
+		for firmwareFile in firmwareFiles:
+			targetFile = os.path.join(FIRMWARE_UPDATE_PATH, PAYLOAD_PATH, basename(firmwareFile))
+			shutil.copyfile(firmwareFile, targetFile)
+	try:
+		shutil.rmtree(TMP_PAYLOAD)
+		shutil.rmtree(TMP_IA_PATH)
+	except OSError:
+		pass
 
 
 def main():
 	sys.stdout.write("\x1b[2J\x1b[H")
 
-	if not os.path.exists(FIRMWARE_PATH):
-		checkForInstallSeed()
-		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_PATH)
-		#launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH)
-		#extractPayloadToDirectory()
-		#copyFirmwareUpdates()
+	if not os.path.exists(FIRMWARE_UPDATE_PATH):
+		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_UPDATE_PATH)
+	if not os.path.exists(TMP_IA_PATH):
+		launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH)
+	if extractPayloadToDirectory() == True:
+		copyFirmwareUpdates()
 
 	print '---------------------------------------------------------------------------'
 	print '         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % VERSION
@@ -451,19 +510,20 @@ def main():
 	targetFileTypes = [GLOB_SCAP_EXTENSION, GLOB_FD_EXTENSION]
 
 	for fileType in targetFileTypes:
-		targetFiles = os.path.join(FIRMWARE_PATH, PAYLOAD_PATH, fileType)
+		targetFiles = os.path.join(FIRMWARE_UPDATE_PATH, PAYLOAD_PATH, fileType)
 		firmwareFiles = getFirmwareFiles(targetFiles)
 		for firmwareFile in firmwareFiles:
 			with open(firmwareFile, 'rb') as f:
 				position = 0xb0
-				if shouldPerformGUIDCheck(basename(firmwareFile)):
+				filename = basename(firmwareFile)
+				if shouldPerformGUIDCheck(filename):
 					filesize = os.stat(firmwareFile).st_size
 					if fileType == GLOB_SCAP_EXTENSION:
 						position = 0xb0
 					else:
 						position = filesize-44
 					biosID = getEFIVersion(f, position)
-					position = searchForGUID(f, position, myBoardID)
+					position = searchForGUID(f, position, filename)
 					trailingBytes = False
 					if position == 0x1200:
 						trailingBytes = True
