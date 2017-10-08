@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -47,6 +47,12 @@
 #		   - fixed NSLocale incompatibility issues (verified with El Capitan).
 #		   - license added.
 #		   - shebang line changed.
+#		   - fall back to en_US if selectLanguage fails.
+#		   - run pkgutil without sudo.
+#		   - add the regular update CatalogURL.
+#		   - read SystemVersion.plist from target volume.
+#		   - read seed enrollment plist from target volume.
+#		   - renamed targetPath to sourcePath.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -94,13 +100,14 @@ from Foundation import NSLocale
 from multiprocessing import Pool
 from xml.etree import ElementTree
 from numbers import Number
+from subprocess import Popen, PIPE
 
 os.environ['__OS_INSTALL'] = "1"
 
 #
 # Script version info.
 #
-scriptVersion=3.7
+scriptVersion=3.8
 
 #
 # Setup seed program data.
@@ -108,7 +115,8 @@ scriptVersion=3.7
 seedProgramData = {
  "DeveloperSeed":"index-10.13seed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
  "PublicSeed":"index-10.13beta-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
- "CustomerSeed":"index-10.13customerseed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+ "CustomerSeed":"index-10.13customerseed-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog",
+ "Regular":"index-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
 
 #
@@ -208,8 +216,8 @@ def selectLanguage():
 		output, err = proc.communicate()
 
 		if proc.returncode:
-			print >> sys.stderr("ERROR: defaults read .GlobalPreferences AppleLocale failed.")
-			sys.exit(-1)
+			id = "en"
+			localeIdentifier = "en_US"
 		else:
 			localeIdentifier = output
 			id = languageCode = output.split('_')[0]
@@ -277,9 +285,9 @@ def downloadDistributionFile(url, targetPath):
 	return distributionFile
 
 
-def getSystemVersionPlist(target):
-	systemVersionPlist = plistlib.readPlist("/System/Library/CoreServices/SystemVersion.plist")
-	if target == '':
+def getSystemVersionPlist(targetVolume, target):
+	systemVersionPlist = plistlib.readPlist(os.path.join(targetVolume, "System/Library/CoreServices/SystemVersion.plist"))
+	if target == None:
 		return systemVersionPlist
 	else:
 		try:
@@ -288,18 +296,18 @@ def getSystemVersionPlist(target):
 			return 'None'
 
 
-def getSeedProgram():
+def getSeedProgram(targetVolume):
 	version = getOSVersion()
 	name = getOSNameByOSVersion(version)
-	systemVersionPlist = getSystemVersionPlist('')
+	systemVersionPlist = getSystemVersionPlist(targetVolume, None)
 	currentBuildID = systemVersionPlist['ProductBuildVersion']
 	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, currentBuildID)
 
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
-			seedEnrollmentPlist = plistlib.readPlist("/Library/Application Support/App Store/.SeedEnrollment.plist")
+			seedEnrollmentPlist = plistlib.readPlist(os.path.join(targetVolume, "Library/Application Support/App Store/.SeedEnrollment.plist"))
 		else:
-			seedEnrollmentPlist = plistlib.readPlist("/Users/Shared/.SeedEnrollment.plist")
+			seedEnrollmentPlist = plistlib.readPlist(os.path.join(targetVolume, "Users/Shared/.SeedEnrollment.plist"))
 	except IOError:
 		return 'None'
 
@@ -308,9 +316,9 @@ def getSeedProgram():
 	return seedProgram
 
 
-def getCatalogData():
-	seedProgram = getSeedProgram()
-	catalog = seedProgramData.get(seedProgram, seedProgramData['PublicSeed'])
+def getCatalogData(targetVolume):
+	seedProgram = getSeedProgram(targetVolume)
+	catalog = seedProgramData.get(seedProgram, seedProgramData['Regular'])
 	catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
 	try:
 		catalogReq = urllib2.urlopen(catalogURL)
@@ -321,8 +329,8 @@ def getCatalogData():
 	return catalogReq.read()
 
 
-def getProduct(productType, macOSVersion):
-	catalogData = getCatalogData()
+def getProduct(productType, macOSVersion, targetVolume):
+	catalogData = getCatalogData(targetVolume)
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
 	print 'Searching for macOS: %s' % macOSVersion
@@ -412,17 +420,19 @@ def getBuildID(distributionFile):
 
 def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
 	list = []
-	data = getProduct(productType, macOSVersion)
+
+	if targetVolume == '':
+		targetVolume = getTargetVolume()
+
+	data = getProduct(productType, macOSVersion, targetVolume)
 
 	if data == None:
 		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ...\n" % macOSVersion)
-		sys.exit(-1)
+		sys.exit(1)
 
 	key = data[0]
 	product = data[1]
 
-	if targetVolume == '':
-		targetVolume = getTargetVolume()
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 
 	if not os.path.isdir(targetPath):
@@ -437,7 +447,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 	seedBuildID = getBuildID(distributionFile)
 	print 'Found Install Package with BuildID (%s) and Key (%s)' % (seedBuildID , key)
 	confirmationText = 'Are you sure that you want to continue [y/n] ? '
-	currentBuildID = getSystemVersionPlist('ProductBuildVersion')
+	currentBuildID = getSystemVersionPlist(targetVolume, 'ProductBuildVersion')
 
 	if currentBuildID == seedBuildID:
 		print '\nWarning: Seed BuildID is the same as macOS on this Mac!'
@@ -494,49 +504,43 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			print '       Please remove it or use a different path!\n\nAborting ...\n'
 			sys.exit(17)
 		print 'Expanding %s to %s' %(targetPackageName, unpackPackage)
-		subprocess.call(["sudo", "pkgutil", "--expand", targetFilename, unpackPackage])
+		subprocess.call(["pkgutil", "--expand", targetFilename, unpackPackage])
 	
 	return (key, distributionFile, targetVolume)
 
 
-def copyFiles(distributionFile, key, targetVolume):
-	targetPath = os.path.join(targetVolume, tmpDirectory, key)
-	betaTag = ""
+def copyFiles(distributionFile, key, targetVolume, applicationPath):
+	sourcePath = os.path.join(targetVolume, tmpDirectory, key)
+	sharedSupportPath = os.path.join(applicationPath, "Contents/SharedSupport")
 
-	if isBetaSeed(distributionFile):
-		betaTag = " Beta"
-
-	if os.path.isdir(targetVolume + "/Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport"):
+	if os.path.isdir(sharedSupportPath):
 		#
 		# Yes we do, but did copy_dmg (a script inside RecoveryHDMetaDmg.pkg) copy the files that Install macOS 10.13 (Beta).app needs?
 		#
-		if not os.path.exists(targetVolume + "/Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport/AppleDiagnostics.dmg"):
+		if not os.path.exists(sharedSupportPath + "/AppleDiagnostics.dmg"):
 			#
 			# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
 			#
 			print '\nCopying: InstallESDDmg.pkg to the target location ...'
-			sourceFile = os.path.join(targetPath, "InstallESDDmg.pkg")
-			#print sourceFile
-			sharedSupportPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app/Contents/SharedSupport")
-			#print targetPath
+			sourceFile = os.path.join(sourcePath, "InstallESDDmg.pkg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
 			#
 			# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
 			#
 			print 'Copying: AppleDiagnostics.dmg to the target location ...'
-			sourceFile = os.path.join(targetPath, "AppleDiagnostics.dmg")
+			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.dmg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 			print 'Copying: AppleDiagnostics.chunklist to the target location ...'
-			sourceFile = os.path.join(targetPath, "AppleDiagnostics.chunklist")
+			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.chunklist")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 			#
 			# Without this step we end up without BaseSystem.[dmg/chunklist].
 			#
 			print 'Copying: BaseSystem.dmg to the target location ...'
-			sourceFile = os.path.join(targetPath, "BaseSystem.dmg")
+			sourceFile = os.path.join(sourcePath, "BaseSystem.dmg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 			print 'Copying: BaseSystem.chunklist to the target location ...'
-			sourceFile = os.path.join(targetPath, "BaseSystem.chunklist")
+			sourceFile = os.path.join(sourcePath, "BaseSystem.chunklist")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 
 
@@ -628,7 +632,13 @@ def main(argv):
  	elif target == "*":
 		if action == "install" and target == "*":
 			installPackage(distributionFile, key, targetVolume)
-			copyFiles(distributionFile, key, targetVolume)
+			betaTag = ""
+
+			if isBetaSeed(distributionFile):
+				betaTag = " Beta"
+
+			applicationPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app")
+			copyFiles(distributionFile, key, targetVolume, applicationPath)
 		elif action == "update":
 			print 'Support for -a update is not implemented in v%s' % scriptVersion
 
