@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 3.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -53,6 +53,9 @@
 #		   - read SystemVersion.plist from target volume.
 #		   - read seed enrollment plist from target volume.
 #		   - renamed targetPath to sourcePath.
+#		   - removed two print statements (reducing the output).
+#		   - improved text output where it counts.
+#		   - show a list with available packages, if there's more than one.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -107,7 +110,7 @@ os.environ['__OS_INSTALL'] = "1"
 #
 # Script version info.
 #
-scriptVersion=3.8
+scriptVersion=4.0
 
 #
 # Setup seed program data.
@@ -275,7 +278,6 @@ def downloadDistributionFile(url, targetPath):
 		os.remove(distributionFile)
 
 	with open(distributionFile, 'w') as file:
-		print '\nDownloading: %s [%s bytes] ...' % (filename, filesize)
 		while True:
 			chunk = req.read(1024)
 			if not chunk:
@@ -330,6 +332,7 @@ def getCatalogData(targetVolume):
 
 
 def getProduct(productType, macOSVersion, targetVolume):
+	packageData = []
 	catalogData = getCatalogData(targetVolume)
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
@@ -344,15 +347,16 @@ def getProduct(productType, macOSVersion, targetVolume):
 					IAPackageIDs = extendedMetaInfo['InstallAssistantPackageIdentifiers']
 
 					if IAPackageIDs['InstallInfo'] == 'com.apple.plist.InstallInfo' and IAPackageIDs['OSInstall'] == 'com.apple.mpkg.OSInstall':
-						return (key, products[key])
+						packageData.extend([key, products[key]])
 	elif productType == "update":
 		for key in products:
 			if 'ExtendedMetaInfo' in products[key]:
 				extendedMetaInfo = products[key]['ExtendedMetaInfo']
 				if 'ProductType' in extendedMetaInfo:
 					if extendedMetaInfo['ProductType'] == 'macOS' and extendedMetaInfo['ProductVersion'] == macOSVersion:
-						return (key, products[key])
+						packageData.extend([key, products[key]])
 
+	return packageData
 
 def downloadFiles(argumentData):
 	url = argumentData[0]
@@ -395,6 +399,8 @@ def isBetaSeed(distributionFile):
 
 
 def getBuildID(distributionFile):
+	build  = 0
+	version = 0
 	tree = ElementTree.parse(distributionFile)
 	root = tree.getroot()
 	auxinfo = root.find('auxinfo')
@@ -405,57 +411,107 @@ def getBuildID(distributionFile):
 		for element in auxinfo_iter:
 			if element.tag == 'key' and element.text == 'BUILD':
 				try:
-					return auxinfo_iter.next().text
+					build = auxinfo_iter.next().text
 				except StopIteration:
 					pass
+			elif element.tag == 'key' and element.text == 'VERSION':
+				try:
+					version = auxinfo_iter.next().text
+				except StopIteration:
+					pass
+		return (version, build)
 	else:
 		element = root.find('pkg-ref')
 		id = element.get('id')
 
 		if not id == None:
-			return id.split('.')[-1]
+			build = id.split('.')[-1]
+			return (version, build)
 
-	return 'Unknown'
+	return ('Unknown', 'Unknown')
 
 
 def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
-	list = []
-
 	if targetVolume == '':
 		targetVolume = getTargetVolume()
 
 	data = getProduct(productType, macOSVersion, targetVolume)
 
 	if data == None:
-		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ...\n" % macOSVersion)
+		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ..." % macOSVersion)
+		print >> sys.stderr, ("       - you may need to use the -m <version> argument\n")
 		sys.exit(1)
 
-	key = data[0]
-	product = data[1]
-
-	targetPath = os.path.join(targetVolume, tmpDirectory, key)
-
-	if not os.path.isdir(targetPath):
-		os.makedirs(targetPath)
-
-	distributions = product['Distributions']
-
-	if distributions[languageSelector]:
-		distributionURL = distributions.get(languageSelector)
-		distributionFile = downloadDistributionFile(distributionURL, targetPath)
-
-	seedBuildID = getBuildID(distributionFile)
-	print 'Found Install Package with BuildID (%s) and Key (%s)' % (seedBuildID , key)
-	confirmationText = 'Are you sure that you want to continue [y/n] ? '
+	list = []
+	buildIDs = []
+	item = 0
+	index = 0
+	indent = ' - '
+	selectorText = ''
 	currentBuildID = getSystemVersionPlist(targetVolume, 'ProductBuildVersion')
+	packageCount = (len(data)/2)
+
+	while(index < (packageCount*2)):
+		item+=1
+		key = data[index]
+		product = data[index+1]
+		index+=2
+		targetPath = os.path.join(targetVolume, tmpDirectory, key)
+
+		if not os.path.isdir(targetPath):
+			os.makedirs(targetPath)
+
+		distributions = product['Distributions']
+
+		if distributions[languageSelector]:
+			distributionURL = distributions.get(languageSelector)
+			distributionFile = downloadDistributionFile(distributionURL, targetPath)
+
+		seedVersion, seedBuildID = getBuildID(distributionFile)
+
+		if productType == 'update' and seedVersion == 0:
+			seedVersion = macOSVersion
+
+		if seedVersion >= macOSVersion:
+			buildIDs.append(seedBuildID)
+		else:
+			continue
+
+		if packageCount > 1:
+			selectorText = "[ %s ] " % item
+			indent = '      - '
+
+		print '\n%sFound update for macOS %s (%s) with key: %s' % (selectorText, seedVersion, seedBuildID , key)
+
+		if currentBuildID == seedBuildID:
+			print '%swarning: seed build version is the same as macOS on this Mac!' % indent
+		elif currentBuildID > seedBuildID:
+			print '%swarning: seed build version is older than macOS on this Mac!' % indent
+		elif currentBuildID < seedBuildID:
+			print '%sseed build version is newer than macOS on this Mac (Ok)' % indent
+
+	if len(buildIDs) == 0:
+		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ..." % macOSVersion)
+		print >> sys.stderr, ("       - you may need to use the -m <version> argument\n")
+		sys.exit(1)
+
+	print ''
+	while True:
+		selection = raw_input("Select package to install [1-%s] " % packageCount)
+		if selection.isdigit():
+			number = int(selection)
+			if number > 0 and number <= packageCount:
+				break
+		else:
+			sys.stdout.write("\033[F\033[K")
+
+	seedBuildID = buildIDs[number-1]
 
 	if currentBuildID == seedBuildID:
-		print '\nWarning: Seed BuildID is the same as macOS on this Mac!'
-	elif seedBuildID < currentBuildID:
-		print '\nWarning: Seed BuildID is older than macOS on this Mac!'
+		confirmationText = 'Are you sure that you want to continue [y/n] ? '
+	elif currentBuildID > seedBuildID:
 		confirmationText = 'Are you absolutely sure that you want to continue [y/n] ? '
-	elif seedBuildID > currentBuildID:
-		print 'Seed BuildID is newer than macOS on this Mac (Ok)'
+	elif currentBuildID < seedBuildID:
 		confirmationText = 'Do you want to continue [y/n] ? '
 
 	if askForConfirmation == True:
@@ -471,6 +527,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			else:
 				sys.stdout.write("\033[F\033[K")
 
+	product = data[number+1]
 	packages = product['Packages']
 
 	for package in packages:
@@ -582,14 +639,15 @@ def showUsage(error, arg):
 
 def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
-	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha\n' % scriptVersion
+	print '-----------------------------------------------------------'
+	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % scriptVersion
+	print '-----------------------------------------------------------'
 	action = 'install'
 	target = '*'
 	volume = ''
 	confirm = True;
 	unpackPackage = ''
 	languageSelector = selectLanguage()
-	print 'languageSelector: %s' % languageSelector
 	macOSVersion = '10.13.1'
 
 	try:
