@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -56,6 +56,9 @@
 #		   - removed two print statements (reducing the output).
 #		   - improved text output where it counts.
 #		   - show a list with available packages, if there's more than one.
+#		   - fixed index error in getPackages.
+#		   - catch invalid selection in getPackages.
+#		   - added (initial/untested) support to install updates.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -105,12 +108,10 @@ from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
 
-os.environ['__OS_INSTALL'] = "1"
+SCRIPT_VERSION = "4.1"
+STARTOSINSTALL = "Contents/Resources/startosinstall"
 
-#
-# Script version info.
-#
-scriptVersion=4.0
+os.environ['__OS_INSTALL'] = "1"
 
 #
 # Setup seed program data.
@@ -501,11 +502,14 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 		if selection.isdigit():
 			number = int(selection)
 			if number > 0 and number <= packageCount:
+				number-=1
 				break
+			else:
+				sys.stdout.write("\033[F\033[K")
 		else:
 			sys.stdout.write("\033[F\033[K")
 
-	seedBuildID = buildIDs[number-1]
+	seedBuildID = buildIDs[number]
 
 	if currentBuildID == seedBuildID:
 		confirmationText = 'Are you sure that you want to continue [y/n] ? '
@@ -527,7 +531,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			else:
 				sys.stdout.write("\033[F\033[K")
 
-	product = data[number+1]
+	product = data[((number*2)+1)]
 	packages = product['Packages']
 
 	for package in packages:
@@ -616,6 +620,24 @@ def installPackage(distributionFile, key, targetVolume):
 		runInstaller(installerPkg, targetVolume)
 
 
+def startOSInstall(targetVolume, applicationPath, convertToAPFS):
+	#
+	# startosinstall --volume / --applicationpath '/Applications/Install\ macOS\ High\ Sierra.app --agreetolicense --converttoapfs NO --nointeraction
+	#
+	cmd = [os.path.join(applicationPath, STARTOSINSTALL)]
+	cmd.extend(['--applicationpath', applicationPath])
+	cmd.extend(['--agreetolicense'])
+	cmd.extend(['--rebootdelay', '30'])
+	cmd.extend(['--volume', targetVolume])
+	cmd.extend(['--converttoapfs', convertToAPFS])
+	#cmd.extend(['--nointeraction'])
+	
+	try:
+		retcode = subprocess.call(cmd)
+	except OSError, error:
+		print >> sys.stderr, ("ERROR: launch of startosinstall failed with %s." % error)
+
+
 def showUsage(error, arg):
 	if  error == True and not arg == '':
 		print 'Error: invalid argument \'%s\' used\n' % arg
@@ -640,7 +662,7 @@ def showUsage(error, arg):
 def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
 	print '-----------------------------------------------------------'
-	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % scriptVersion
+	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % SCRIPT_VERSION
 	print '-----------------------------------------------------------'
 	action = 'install'
 	target = '*'
@@ -688,17 +710,28 @@ def main(argv):
  	if key == "":
  		print "Error: Aborting ..."
  	elif target == "*":
+		betaTag = ""
+			
+		if isBetaSeed(distributionFile):
+			betaTag = " Beta"
+			
+		applicationPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app")
+
 		if action == "install" and target == "*":
 			installPackage(distributionFile, key, targetVolume)
-			betaTag = ""
-
-			if isBetaSeed(distributionFile):
-				betaTag = " Beta"
-
-			applicationPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app")
 			copyFiles(distributionFile, key, targetVolume, applicationPath)
 		elif action == "update":
-			print 'Support for -a update is not implemented in v%s' % scriptVersion
+			print ''
+			while True:
+				confirm = raw_input("Do you want to install the update now ? ").lower()
+				if confirm in ('n', 'y'):
+					if confirm == 'n':
+						print 'Aborting ...\n'
+						sys.exit(0)
+					elif confirm == 'y':
+						startOSInstall(targetVolume, applicationPath, 'NO')
+				else:
+					sys.stdout.write("\033[F\033[K")
 
 
 if __name__ == "__main__":
