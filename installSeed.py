@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -59,6 +59,8 @@
 #		   - fixed index error in getPackages.
 #		   - catch invalid selection in getPackages.
 #		   - added (initial/untested) support to install updates.
+#		   - fix for the installation and upgrade errors (hopefully).
+#		   - APFS conversion check added.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -108,8 +110,9 @@ from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
 
-SCRIPT_VERSION = "4.1"
+SCRIPT_VERSION = "4.2"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
+DISKUTIL = "/usr/sbin/diskutil"
 
 os.environ['__OS_INSTALL'] = "1"
 
@@ -432,6 +435,23 @@ def getBuildID(distributionFile):
 	return ('Unknown', 'Unknown')
 
 
+def confirmWithText(confirmationText, shouldAbort):
+	while True:
+		confirm = raw_input(confirmationText).lower()
+		if confirm in ('n', 'y'):
+			if confirm == 'n':
+				if shouldAbort:
+					print 'Aborting ...\n'
+					sys.exit(0)
+				else:
+					return False
+			elif confirm == 'y':
+				return True
+		else:
+			sys.stdout.write("\033[F\033[K")
+	return False
+
+
 def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
 	if targetVolume == '':
 		targetVolume = getTargetVolume()
@@ -520,16 +540,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 
 	if askForConfirmation == True:
 		print ''
-		while True:
-			confirm = raw_input(confirmationText).lower()
-			if confirm in ('n', 'y'):
-				if confirm == 'n':
-					print 'Aborting ...\n'
-					sys.exit(0)
-				elif confirm == 'y':
-					break
-			else:
-				sys.stdout.write("\033[F\033[K")
+		confirmWithText(confirmationText, True)
 
 	product = data[((number*2)+1)]
 	packages = product['Packages']
@@ -568,6 +579,38 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 		subprocess.call(["pkgutil", "--expand", targetFilename, unpackPackage])
 	
 	return (key, distributionFile, targetVolume)
+
+
+def getDiskInfoByVolume(targetVolume):
+	isSolidState = False
+	partitionType = "HFS"
+	#
+	# diskutil info[rmation] /Volumes/<volumename>
+	#
+	cmd = [DISKUTIL]
+	cmd.extend(['information', targetVolume])
+	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	output, err = proc.communicate()
+	
+	if proc.returncode:
+		print "ERROR: diskutil information %s failed." % (targetVolume, output)
+	else:
+		lines = output.splitlines()
+		for line in lines:
+			# skip empty lines
+			if line.rstrip():
+				# strip leading whitespace
+				strippedLine = line.lstrip()
+				# check for Type (Bundle):
+				if strippedLine.startswith("Type"):
+					# spit line into two
+					data = strippedLine.split(':')
+					# strip leading whitespace and check for 'APFS'
+					if data[1].lstrip() == 'apfs':
+						partitionType = "APFS"
+				elif strippedLine.startswith("Solid State"):
+					isSolidState = True
+	return (isSolidState, partitionType)
 
 
 def copyFiles(distributionFile, key, targetVolume, applicationPath):
@@ -720,18 +763,23 @@ def main(argv):
 		if action == "install" and target == "*":
 			installPackage(distributionFile, key, targetVolume)
 			copyFiles(distributionFile, key, targetVolume, applicationPath)
-		elif action == "update":
 			print ''
-			while True:
-				confirm = raw_input("Do you want to install the update now ? ").lower()
-				if confirm in ('n', 'y'):
-					if confirm == 'n':
-						print 'Aborting ...\n'
-						sys.exit(0)
-					elif confirm == 'y':
+			if confirmWithText("Do you want to install now ? ", True):
+				isSolidState, partitionType = getDiskInfoByVolume(targetVolume)
+				if isSolidState and partitionType == "HFS":
+					if confirmWithText("Do you want to convert the target volume to APFS ? ", False):
+						if confirmWithText("Are you absolutely sure ? ", False):
+							startOSInstall(targetVolume, applicationPath, 'YES')
+						else:
+							startOSInstall(targetVolume, applicationPath, 'NO')
+					else:
 						startOSInstall(targetVolume, applicationPath, 'NO')
 				else:
-					sys.stdout.write("\033[F\033[K")
+					startOSInstall(targetVolume, applicationPath, 'NO')
+		elif action == "update":
+			print ''
+			if confirmWithText("Do you want to upgrade now ? ", True):
+				installPackage(distributionFile, key, targetVolume)
 
 
 if __name__ == "__main__":
