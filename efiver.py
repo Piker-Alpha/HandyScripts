@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.3 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -30,6 +30,7 @@
 #		   - convert board-id to string and remove the trailing null byte.
 #		   - added a couple of assumed Apple models as modelX,Y.
 #		   - added a couple of new Apple board-id's.
+#		   - there is no installer for 10.13.1 so for now; fall back to 10.13
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -89,7 +90,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.3
+VERSION = 2.4
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -219,7 +220,7 @@ def getInstallSeed(scriptDirectory):
 		os.fchmod(f.fileno(), stat.S_IMODE(mode))
 
 
-def launchInstallSeed(action, targetPackage, unpackPath):
+def launchInstallSeed(action, targetPackage, unpackPath, macOSVersion):
 	scriptDirectory = os.path.dirname(os.path.abspath(__file__))
 	helperScript = os.path.join(scriptDirectory, INSTALLSEED)
 	if not os.path.exists(helperScript):
@@ -233,6 +234,7 @@ def launchInstallSeed(action, targetPackage, unpackPath):
 	cmd.extend(['-t', '/'])
 	cmd.extend(['-c', '0'])
 	cmd.extend(['-u', unpackPath])
+	cmd.extend(['-m', macOSVersion])
 
 	try:
 		retcode = subprocess.call(cmd)
@@ -506,9 +508,9 @@ def main():
 	sys.stdout.write("\x1b[2J\x1b[H")
 
 	if not os.path.exists(FIRMWARE_UPDATE_PATH):
-		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_UPDATE_PATH)
+		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_UPDATE_PATH, '10.13')
 	if not os.path.exists(TMP_IA_PATH):
-		launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH)
+		launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH, '10.13')
 	if extractPayloadToDirectory() == True:
 		copyFirmwareUpdates()
 
