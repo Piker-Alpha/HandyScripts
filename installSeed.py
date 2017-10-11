@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.3 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -61,6 +61,10 @@
 #		   - added (initial/untested) support to install updates.
 #		   - fix for the installation and upgrade errors (hopefully).
 #		   - APFS conversion check added.
+#		   - code styling improvements (now using double quotes for text).
+#		   - renamed getBuildID() to getBuildAndVersion().
+#		   - moved APFS confirmation to confirmAPFSConversion().
+#		   -
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -110,7 +114,7 @@ from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
 
-SCRIPT_VERSION = "4.2"
+VERSION = "4.3"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
 DISKUTIL = "/usr/sbin/diskutil"
 
@@ -247,17 +251,17 @@ def selectLanguage():
 def getTargetVolume():
 	index = 0
 	targetVolumes = glob.glob("/Volumes/*")
-	print '\nAvailable target volumes:\n'
+	print "\nAvailable target volumes:\n"
 
 	for volume in targetVolumes:
-		print ('[ %i ] %s' % (index, basename(volume)))
+		print "[ %i ] %s" % (index, basename(volume))
 		index+=1
 
 	print ''
 
 	while True:
 		try:
-			volumeNumber = int(raw_input('Select a target volume: '))
+			volumeNumber = int(raw_input("Select a target volume: "))
 			if volumeNumber > (index-1):
 				sys.stdout.write("\033[F\033[K")
 			else:
@@ -307,7 +311,7 @@ def getSeedProgram(targetVolume):
 	name = getOSNameByOSVersion(version)
 	systemVersionPlist = getSystemVersionPlist(targetVolume, None)
 	currentBuildID = systemVersionPlist['ProductBuildVersion']
-	print 'Currently running on macOS %s %s Build (%s) ' % (name, version, currentBuildID)
+	print "Currently running on macOS %s %s Build (%s) " % (name, version, currentBuildID)
 
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
@@ -340,7 +344,7 @@ def getProduct(productType, macOSVersion, targetVolume):
 	catalogData = getCatalogData(targetVolume)
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
-	print 'Searching for macOS: %s' % macOSVersion
+	print "Searching for macOS: %s" % macOSVersion
 
 	if productType == "install":
 		for key in products:
@@ -362,6 +366,7 @@ def getProduct(productType, macOSVersion, targetVolume):
 
 	return packageData
 
+
 def downloadFiles(argumentData):
 	url = argumentData[0]
 	targetFilename = argumentData[1]
@@ -378,7 +383,7 @@ def downloadFiles(argumentData):
 		while True:
 			chunk = fileReq.read(4096)
 			if not chunk:
-				print 'Download of %s finished' % filename
+				print "Download of %s finished" % filename
 				break
 			file.write(chunk)
 
@@ -402,7 +407,7 @@ def isBetaSeed(distributionFile):
 	return False
 
 
-def getBuildID(distributionFile):
+def getBuildAndVersion(distributionFile):
 	build  = 0
 	version = 0
 	tree = ElementTree.parse(distributionFile)
@@ -441,7 +446,7 @@ def confirmWithText(confirmationText, shouldAbort):
 		if confirm in ('n', 'y'):
 			if confirm == 'n':
 				if shouldAbort:
-					print 'Aborting ...\n'
+					print "Aborting ...\n"
 					sys.exit(0)
 				else:
 					return False
@@ -450,6 +455,18 @@ def confirmWithText(confirmationText, shouldAbort):
 		else:
 			sys.stdout.write("\033[F\033[K")
 	return False
+
+
+def confirmAPFSConversion(targetVolume):
+	# Ask for confirmation, aborts if answered with no.
+	if confirmWithText("\nDo you want to install now [y/n] ? ", True):
+		isSolidState, partitionType = getDiskInfoByVolume(targetVolume)
+		# Ask for confirmation on flash media with a HFS partition.
+		if isSolidState and partitionType == "HFS":
+			if confirmWithText("Do you want to convert the target volume to APFS [y/n] ? ", False):
+				if confirmWithText("Are you absolutely sure [y/n] ? ", False):
+					return 'YES'
+	return 'NO'
 
 
 def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
@@ -488,7 +505,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			distributionURL = distributions.get(languageSelector)
 			distributionFile = downloadDistributionFile(distributionURL, targetPath)
 
-		seedVersion, seedBuildID = getBuildID(distributionFile)
+		seedVersion, seedBuildID = getBuildAndVersion(distributionFile)
 
 		if productType == 'update' and seedVersion == 0:
 			seedVersion = macOSVersion
@@ -502,14 +519,14 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			selectorText = "[ %s ] " % item
 			indent = '      - '
 
-		print '\n%sFound update for macOS %s (%s) with key: %s' % (selectorText, seedVersion, seedBuildID , key)
+		print "\n%sFound update for macOS %s (%s) with key: %s" % (selectorText, seedVersion, seedBuildID , key)
 
 		if currentBuildID == seedBuildID:
-			print '%swarning: seed build version is the same as macOS on this Mac!' % indent
+			print "%swarning: seed build version is the same as macOS on this Mac!" % indent
 		elif currentBuildID > seedBuildID:
-			print '%swarning: seed build version is older than macOS on this Mac!' % indent
+			print "%swarning: seed build version is older than macOS on this Mac!" % indent
 		elif currentBuildID < seedBuildID:
-			print '%sseed build version is newer than macOS on this Mac (Ok)' % indent
+			print "%sseed build version is newer than macOS on this Mac (Ok)" % indent
 
 	if len(buildIDs) == 0:
 		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ..." % macOSVersion)
@@ -532,14 +549,13 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 	seedBuildID = buildIDs[number]
 
 	if currentBuildID == seedBuildID:
-		confirmationText = 'Are you sure that you want to continue [y/n] ? '
+		confirmationText = "\nAre you sure that you want to continue [y/n] ? "
 	elif currentBuildID > seedBuildID:
-		confirmationText = 'Are you absolutely sure that you want to continue [y/n] ? '
+		confirmationText = "\nAre you absolutely sure that you want to continue [y/n] ? "
 	elif currentBuildID < seedBuildID:
-		confirmationText = 'Do you want to continue [y/n] ? '
+		confirmationText = "\nDo you want to continue [y/n] ? "
 
 	if askForConfirmation == True:
-		print ''
 		confirmWithText(confirmationText, True)
 
 	product = data[((number*2)+1)]
@@ -559,23 +575,23 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 				break;
 
 	if not len(list) == 0:
-		print '\nQueued Download(s):'
+		print "\nQueued Download(s):"
 		for array in list:
-			print '%s [%s bytes]' % (basename(array[1]), array[2])
+			print "%s [%s bytes]" % (basename(array[1]), array[2])
 		print ''
 		p = Pool()
 		p.map(downloadFiles, list)
 		p.close()
 	else:
 		if targetPackageName != "*":
-			print '\nWarning: target package > %s < not found!' % targetPackageName
+			print "\nWarning: target package > %s < not found!" % targetPackageName
 
 	if not unpackPackage == '':
 		if os.path.isdir(unpackPackage):
-			print '\nError: Given target path already exists!'
-			print '       Please remove it or use a different path!\n\nAborting ...\n'
+			print "\nError: Given target path already exists!"
+			print "       Please remove it or use a different path!\n\nAborting ...\n"
 			sys.exit(17)
-		print 'Expanding %s to %s' %(targetPackageName, unpackPackage)
+		print "Expanding %s to %s" %(targetPackageName, unpackPackage)
 		subprocess.call(["pkgutil", "--expand", targetFilename, unpackPackage])
 	
 	return (key, distributionFile, targetVolume)
@@ -625,38 +641,38 @@ def copyFiles(distributionFile, key, targetVolume, applicationPath):
 			#
 			# Without this step we end up with installer.pkg as InstallDMG.dmg and InstallInfo.plist
 			#
-			print '\nCopying: InstallESDDmg.pkg to the target location ...'
+			print "\nCopying: InstallESDDmg.pkg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "InstallESDDmg.pkg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
 			#
 			# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
 			#
-			print 'Copying: AppleDiagnostics.dmg to the target location ...'
+			print "Copying: AppleDiagnostics.dmg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.dmg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
-			print 'Copying: AppleDiagnostics.chunklist to the target location ...'
+			print "Copying: AppleDiagnostics.chunklist to the target location ..."
 			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.chunklist")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 			#
 			# Without this step we end up without BaseSystem.[dmg/chunklist].
 			#
-			print 'Copying: BaseSystem.dmg to the target location ...'
+			print "Copying: BaseSystem.dmg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "BaseSystem.dmg")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
-			print 'Copying: BaseSystem.chunklist to the target location ...'
+			print "Copying: BaseSystem.chunklist to the target location ..."
 			sourceFile = os.path.join(sourcePath, "BaseSystem.chunklist")
 			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
 
 
 def runInstaller(installerPkg, targetVolume):
-	print '\nRunning installer ...'
+	print "\nRunning installer ..."
 	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
 
 
 def installPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	installerPkg = os.path.join(targetPath, installerPackage)
-	print '\nCreating installer.pkg ...'
+	print "\nCreating installer.pkg ..."
 	subprocess.call(["sudo", "productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
 
 	if os.path.exists(installerPkg):
@@ -683,30 +699,30 @@ def startOSInstall(targetVolume, applicationPath, convertToAPFS):
 
 def showUsage(error, arg):
 	if  error == True and not arg == '':
-		print 'Error: invalid argument \'%s\' used\n' % arg
+		print "Error: invalid argument '%s' used\n" % arg
 	else:
-		print 'Error: invalid argument(s) used\n'
-	print 'Supported arguments:\n'
-	print 'installSeed.py -a update'
-	print 'installSeed.py -a update -f <packagename>'
-	print 'installSeed.py -a update -f <packagename> -t <volume>'
-	print 'installSeed.py -a update -f <packagename> -t <volume> -u [target path]'
-	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
-	print 'installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n'
-	print 'installSeed.py -a install'
-	print 'installSeed.py -a install -f <packagename>'
-	print 'installSeed.py -a install -f <packagename> -t <volume>'
-	print 'installSeed.py -a install -f <packagename> -t <volume> -u [target path]'
-	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n'
-	print 'installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n'
+		print "Error: invalid argument(s) used\n"
+	print "Supported arguments:\n"
+	print "installSeed.py -a update"
+	print "installSeed.py -a update -f <packagename>"
+	print "installSeed.py -a update -f <packagename> -t <volume>"
+	print "installSeed.py -a update -f <packagename> -t <volume> -u [target path]"
+	print "installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n"
+	print "installSeed.py -a update -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n"
+	print "installSeed.py -a install"
+	print "installSeed.py -a install -f <packagename>"
+	print "installSeed.py -a install -f <packagename> -t <volume>"
+	print "installSeed.py -a install -f <packagename> -t <volume> -u [target path]"
+	print "installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation)\n"
+	print "installSeed.py -a install -f <packagename> -t <volume> -c [0/1] (0 skips confirmation) -m [10.13.x]\n"
 	sys.exit(2)
 
 
 def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
-	print '-----------------------------------------------------------'
-	print 'installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % SCRIPT_VERSION
-	print '-----------------------------------------------------------'
+	print "-----------------------------------------------------------"
+	print "installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION
+	print "-----------------------------------------------------------"
 	action = 'install'
 	target = '*'
 	volume = ''
@@ -763,22 +779,10 @@ def main(argv):
 		if action == "install" and target == "*":
 			installPackage(distributionFile, key, targetVolume)
 			copyFiles(distributionFile, key, targetVolume, applicationPath)
-			print ''
-			if confirmWithText("Do you want to install now ? ", True):
-				isSolidState, partitionType = getDiskInfoByVolume(targetVolume)
-				if isSolidState and partitionType == "HFS":
-					if confirmWithText("Do you want to convert the target volume to APFS ? ", False):
-						if confirmWithText("Are you absolutely sure ? ", False):
-							startOSInstall(targetVolume, applicationPath, 'YES')
-						else:
-							startOSInstall(targetVolume, applicationPath, 'NO')
-					else:
-						startOSInstall(targetVolume, applicationPath, 'NO')
-				else:
-					startOSInstall(targetVolume, applicationPath, 'NO')
+			conversionState = confirmAPFSConversion(targetVolume)
+			startOSInstall(targetVolume, applicationPath, conversionState)
 		elif action == "update":
-			print ''
-			if confirmWithText("Do you want to upgrade now ? ", True):
+			if confirmWithText("\nDo you want to upgrade now ? ", True):
 				installPackage(distributionFile, key, targetVolume)
 
 
