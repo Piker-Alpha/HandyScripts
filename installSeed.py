@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.3 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -64,7 +64,11 @@
 #		   - code styling improvements (now using double quotes for text).
 #		   - renamed getBuildID() to getBuildAndVersion().
 #		   - moved APFS confirmation to confirmAPFSConversion().
-#		   -
+#		   - renamed variable unpackPackage to unpackFolder.
+#		   - improved feedback for package expansion (think -u packagename).
+#		   - additional code styling improvements (use single quotes for arguments).
+#		   - SIP check implemented for startOSInstall().
+#		   - select installation type (GUI/silent) based on SIP configuration.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -113,10 +117,12 @@ from multiprocessing import Pool
 from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
+from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.3"
-STARTOSINSTALL = "Contents/Resources/startosinstall"
+VERSION = "4.4"
 DISKUTIL = "/usr/sbin/diskutil"
+IATOOL = "Contents/MacOS/InstallAssistant"
+STARTOSINSTALL = "Contents/Resources/startosinstall"
 
 os.environ['__OS_INSTALL'] = "1"
 
@@ -339,12 +345,15 @@ def getCatalogData(targetVolume):
 	return catalogReq.read()
 
 
-def getProduct(productType, macOSVersion, targetVolume):
+def getProduct(productType, macOSVersion, targetVolume, targetPackageName):
 	packageData = []
 	catalogData = getCatalogData(targetVolume)
 	root = plistlib.readPlistFromString(catalogData)
 	products = root['Products']
-	print "Searching for macOS: %s" % macOSVersion
+	if targetPackageName == "*":
+		print "Searching for macOS: %s" % macOSVersion
+	else:
+		print "Searching for: %s for macOS %s" % (targetPackageName, macOSVersion)
 
 	if productType == "install":
 		for key in products:
@@ -469,11 +478,21 @@ def confirmAPFSConversion(targetVolume):
 	return 'NO'
 
 
-def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackPackage, askForConfirmation, languageSelector):
+def expandPackage(packageName, targetFolder):
+	if os.path.isdir(targetFolder):
+		print "\nError: Given target path already exists!"
+		print "       Please remove it or use a different path!\n\nAborting ...\n"
+		sys.exit(17)
+	print "Expanding %s to %s" %(basename(packageName), targetFolder)
+	subprocess.call(['pkgutil', '--expand', packageName, targetFolder])
+	sys.exit(0)
+
+
+def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpackFolder, askForConfirmation, languageSelector):
 	if targetVolume == '':
 		targetVolume = getTargetVolume()
 
-	data = getProduct(productType, macOSVersion, targetVolume)
+	data = getProduct(productType, macOSVersion, targetVolume, targetPackageName)
 
 	if data == None:
 		print >> sys.stderr, ("\nERROR: target macOS version (%s) not found. Aborting ..." % macOSVersion)
@@ -586,13 +605,8 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 		if targetPackageName != "*":
 			print "\nWarning: target package > %s < not found!" % targetPackageName
 
-	if not unpackPackage == '':
-		if os.path.isdir(unpackPackage):
-			print "\nError: Given target path already exists!"
-			print "       Please remove it or use a different path!\n\nAborting ...\n"
-			sys.exit(17)
-		print "Expanding %s to %s" %(targetPackageName, unpackPackage)
-		subprocess.call(["pkgutil", "--expand", targetFilename, unpackPackage])
+	if not unpackFolder == '':
+		expandPackage(targetFilename, unpackFolder)
 	
 	return (key, distributionFile, targetVolume)
 
@@ -643,58 +657,78 @@ def copyFiles(distributionFile, key, targetVolume, applicationPath):
 			#
 			print "\nCopying: InstallESDDmg.pkg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "InstallESDDmg.pkg")
-			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath + "/InstallESD.dmg" ])
+			subprocess.call(['sudo', 'cp', sourceFile, sharedSupportPath + "/InstallESD.dmg"])
 			#
 			# Without this step we end up without AppleDiagnostics.[dmg/chunklist].
 			#
 			print "Copying: AppleDiagnostics.dmg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.dmg")
-			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			subprocess.call(['sudo', 'cp', sourceFile, sharedSupportPath])
 			print "Copying: AppleDiagnostics.chunklist to the target location ..."
 			sourceFile = os.path.join(sourcePath, "AppleDiagnostics.chunklist")
-			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			subprocess.call(['sudo', 'cp', sourceFile, sharedSupportPath])
 			#
 			# Without this step we end up without BaseSystem.[dmg/chunklist].
 			#
 			print "Copying: BaseSystem.dmg to the target location ..."
 			sourceFile = os.path.join(sourcePath, "BaseSystem.dmg")
-			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			subprocess.call(['sudo', 'cp', sourceFile, sharedSupportPath])
 			print "Copying: BaseSystem.chunklist to the target location ..."
 			sourceFile = os.path.join(sourcePath, "BaseSystem.chunklist")
-			subprocess.call(["sudo", "cp", sourceFile, sharedSupportPath])
+			subprocess.call(['sudo', 'cp', sourceFile, sharedSupportPath])
 
 
 def runInstaller(installerPkg, targetVolume):
 	print "\nRunning installer ..."
-	subprocess.call(["sudo", "/usr/sbin/installer", "-pkg", installerPkg, "-target", targetVolume])
+	subprocess.call(['sudo', '/usr/sbin/installer', '-pkg', installerPkg, '-target', targetVolume])
 
 
 def installPackage(distributionFile, key, targetVolume):
 	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	installerPkg = os.path.join(targetPath, installerPackage)
 	print "\nCreating installer.pkg ..."
-	subprocess.call(["sudo", "productbuild", "--distribution", distributionFile, "--package-path", targetPath, installerPkg])
+	subprocess.call(['sudo', 'productbuild', '--distribution', distributionFile, '--package-path', targetPath, installerPkg])
 
 	if os.path.exists(installerPkg):
 		runInstaller(installerPkg, targetVolume)
 
 
-def startOSInstall(targetVolume, applicationPath, convertToAPFS):
-	#
-	# startosinstall --volume / --applicationpath '/Applications/Install\ macOS\ High\ Sierra.app --agreetolicense --converttoapfs NO --nointeraction
-	#
-	cmd = [os.path.join(applicationPath, STARTOSINSTALL)]
-	cmd.extend(['--applicationpath', applicationPath])
-	cmd.extend(['--agreetolicense'])
-	cmd.extend(['--rebootdelay', '30'])
-	cmd.extend(['--volume', targetVolume])
-	cmd.extend(['--converttoapfs', convertToAPFS])
-	#cmd.extend(['--nointeraction'])
-	
-	try:
-		retcode = subprocess.call(cmd)
-	except OSError, error:
-		print >> sys.stderr, ("ERROR: launch of startosinstall failed with %s." % error)
+def getActiveCSRConfig():
+	libSystem = CDLL('/usr/lib/system/libsystem_kernel.dylib')
+	i = c_uint(0)
+	if libSystem.csr_get_active_config(byref(i)) == 0:
+		return i.value
+	return -1
+
+
+def startOSInstall(targetVolume, applicationPath):
+	csrConfigValue = getActiveCSRConfig()
+	print "System Integrity Protection status: %0x" % csrConfigValue
+	if csrConfigValue and (csrConfigValue & 320) != 0:
+		#
+		# startosinstall --volume / --applicationpath '/Applications/Install\ macOS\ High\ Sierra.app --agreetolicense --converttoapfs NO --nointeraction
+		#
+		conversionState = confirmAPFSConversion(targetVolume)
+		cmd = [os.path.join(applicationPath, STARTOSINSTALL)]
+		cmd.extend(['--applicationpath', applicationPath])
+		cmd.extend(['--agreetolicense'])
+		cmd.extend(['--rebootdelay', '30'])
+		cmd.extend(['--volume', targetVolume])
+		cmd.extend(['--converttoapfs', convertToAPFS])
+		#cmd.extend(['--nointeraction'])
+		try:
+			retcode = subprocess.call(cmd)
+		except OSError, error:
+			print >> sys.stderr, ("ERROR: launch of startosinstall failed with %s." % error)
+	else:
+		print "Selecting GUI installation enforced by SIP configuration ..."
+		cmd = ['/usr/bin/open']
+		cmd.extend(['-a', os.path.join(applicationPath, IATOOL)])
+		try:
+			subprocess.call(cmd)
+			sys.exit(0)
+		except OSError, error:
+			print >> sys.stderr, ("ERROR: launch of InstallAssistant failed with %s." % error)
 
 
 def showUsage(error, arg):
@@ -727,7 +761,7 @@ def main(argv):
 	target = '*'
 	volume = ''
 	confirm = True;
-	unpackPackage = ''
+	unpackFolder = ''
 	languageSelector = selectLanguage()
 	macOSVersion = '10.13.1'
 
@@ -753,7 +787,7 @@ def main(argv):
 			volume = arg
 		elif opt == '-u':
 			if target != '*':
-				unpackPackage = arg
+				unpackFolder = arg
 			else:
 				showUsage(True, arg)
 		elif opt == '-m':
@@ -761,7 +795,7 @@ def main(argv):
 		else:
 			showUsage(True, arg)
 
-	data = getPackages(action, macOSVersion, target, volume, unpackPackage, confirm, languageSelector)
+	data = getPackages(action, macOSVersion, target, volume, unpackFolder, confirm, languageSelector)
 	key = data[0]
 	distributionFile = data[1]
 	targetVolume = data[2]
@@ -777,10 +811,9 @@ def main(argv):
 		applicationPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app")
 
 		if action == "install" and target == "*":
-			installPackage(distributionFile, key, targetVolume)
-			copyFiles(distributionFile, key, targetVolume, applicationPath)
-			conversionState = confirmAPFSConversion(targetVolume)
-			startOSInstall(targetVolume, applicationPath, conversionState)
+			#installPackage(distributionFile, key, targetVolume)
+			#copyFiles(distributionFile, key, targetVolume, applicationPath)
+			startOSInstall(targetVolume, applicationPath)
 		elif action == "update":
 			if confirmWithText("\nDo you want to upgrade now ? ", True):
 				installPackage(distributionFile, key, targetVolume)
