@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -69,6 +69,9 @@
 #		   - additional code styling improvements (use single quotes for arguments).
 #		   - SIP check implemented for startOSInstall().
 #		   - select installation type (GUI/silent) based on SIP configuration.
+#		   - check CSR configuration for Sierra and High Sierra only.
+#		   - code improvements.
+#		   - uncommented two lines that made v4.4 a failure.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -119,7 +122,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.4"
+VERSION = "4.5"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -218,9 +221,7 @@ def getICUName(id):
 	return icuData.get(id, icuData['en'])
 
 
-def selectLanguage():
-	macOSVersion = getOSVersion()
-	
+def selectLanguage(macOSVersion):
 	if macOSVersion > 10.11:
 		locale = NSLocale.currentLocale()
 		languageCode = NSLocale.languageCode(locale)
@@ -701,34 +702,48 @@ def getActiveCSRConfig():
 	return -1
 
 
-def startOSInstall(targetVolume, applicationPath):
-	csrConfigValue = getActiveCSRConfig()
-	print "System Integrity Protection status: %0x" % csrConfigValue
-	if csrConfigValue and (csrConfigValue & 320) != 0:
-		#
-		# startosinstall --volume / --applicationpath '/Applications/Install\ macOS\ High\ Sierra.app --agreetolicense --converttoapfs NO --nointeraction
-		#
-		conversionState = confirmAPFSConversion(targetVolume)
-		cmd = [os.path.join(applicationPath, STARTOSINSTALL)]
-		cmd.extend(['--applicationpath', applicationPath])
-		cmd.extend(['--agreetolicense'])
-		cmd.extend(['--rebootdelay', '30'])
+def launchStartOSInstall(targetVolume, applicationPath):
+	#
+	# startosinstall --volume / --applicationpath '/Applications/Install\ macOS\ High\ Sierra.app --agreetolicense --rebootdelay 30 --converttoapfs NO --nointeraction
+	#
+	conversionState = confirmAPFSConversion(targetVolume)
+	cmd = [os.path.join(applicationPath, STARTOSINSTALL)]
+	cmd.extend(['--applicationpath', applicationPath])
+	cmd.extend(['--agreetolicense'])
+	cmd.extend(['--rebootdelay', '30'])
+	if os.path.ismount(targetVolume):
 		cmd.extend(['--volume', targetVolume])
-		cmd.extend(['--converttoapfs', convertToAPFS])
-		#cmd.extend(['--nointeraction'])
-		try:
-			retcode = subprocess.call(cmd)
-		except OSError, error:
-			print >> sys.stderr, ("ERROR: launch of startosinstall failed with %s." % error)
+	cmd.extend(['--converttoapfs', conversionState])
+	#cmd.extend(['--nointeraction'])
+	try:
+		retcode = subprocess.call(cmd)
+	except OSError, error:
+		print >> sys.stderr, ("ERROR: launch of startosinstall failed with %s." % error)
+
+
+def launchGUIInstall(applicationPath):
+	cmd = ['/usr/bin/open']
+	cmd.extend(['-a', os.path.join(applicationPath, IATOOL)])
+	try:
+		subprocess.call(cmd)
+		sys.exit(0)
+	except OSError, error:
+		print >> sys.stderr, ("ERROR: launch of InstallAssistant failed with %s." % error)
+
+
+def startOSInstall(targetVolume, applicationPath, macOSVersion):
+	if macOSVersion >= 10.11 and macOSVersion < 10.12:
+		launchStartOSInstall(targetVolume, applicationPath)
+	elif macOSVersion >= 10.12:
+		csrConfigValue = getActiveCSRConfig()
+		print "System Integrity Protection status: %0x" % csrConfigValue
+		if csrConfigValue and (csrConfigValue & 320) != 0:
+			launchStartOSInstall(targetVolume, applicationPath)
+		else:
+			print "Selecting GUI installation, enforced by SIP configuration ..."
+			launchGUIInstall(applicationPath)
 	else:
-		print "Selecting GUI installation enforced by SIP configuration ..."
-		cmd = ['/usr/bin/open']
-		cmd.extend(['-a', os.path.join(applicationPath, IATOOL)])
-		try:
-			subprocess.call(cmd)
-			sys.exit(0)
-		except OSError, error:
-			print >> sys.stderr, ("ERROR: launch of InstallAssistant failed with %s." % error)
+		launchGUIInstall(applicationPath)
 
 
 def showUsage(error, arg):
@@ -762,8 +777,9 @@ def main(argv):
 	volume = ''
 	confirm = True;
 	unpackFolder = ''
-	languageSelector = selectLanguage()
-	macOSVersion = '10.13.1'
+	macOSVersion = getOSVersion()
+	languageSelector = selectLanguage(macOSVersion)
+	targetOSVersion = '10.13.1'
 
 	try:
 		opts, args = getopt.getopt(argv,"h:a:f:t:c:u:m:",["help","action","file","target","confirmation","unpack","mac"])
@@ -791,14 +807,11 @@ def main(argv):
 			else:
 				showUsage(True, arg)
 		elif opt == '-m':
-			macOSVersion = arg
+			targetOSVersion = arg
 		else:
 			showUsage(True, arg)
 
-	data = getPackages(action, macOSVersion, target, volume, unpackFolder, confirm, languageSelector)
-	key = data[0]
-	distributionFile = data[1]
-	targetVolume = data[2]
+	key, distributionFile, targetVolume = getPackages(action, targetOSVersion, target, volume, unpackFolder, confirm, languageSelector)
 
  	if key == "":
  		print "Error: Aborting ..."
@@ -811,9 +824,9 @@ def main(argv):
 		applicationPath = os.path.join(targetVolume, "Applications/Install macOS High Sierra" + betaTag + ".app")
 
 		if action == "install" and target == "*":
-			#installPackage(distributionFile, key, targetVolume)
-			#copyFiles(distributionFile, key, targetVolume, applicationPath)
-			startOSInstall(targetVolume, applicationPath)
+			installPackage(distributionFile, key, targetVolume)
+			copyFiles(distributionFile, key, targetVolume, applicationPath)
+			startOSInstall(targetVolume, applicationPath, macOSVersion)
 		elif action == "update":
 			if confirmWithText("\nDo you want to upgrade now ? ", True):
 				installPackage(distributionFile, key, targetVolume)
