@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -72,6 +72,7 @@
 #		   - check CSR configuration for Sierra and High Sierra only.
 #		   - code improvements.
 #		   - uncommented two lines that made v4.4 a failure.
+#		   - catch languageCode not being defined.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -122,7 +123,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.5"
+VERSION = "4.6"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -236,6 +237,7 @@ def selectLanguage(macOSVersion):
 		if proc.returncode:
 			id = "en"
 			localeIdentifier = "en_US"
+			languageCode = id
 		else:
 			localeIdentifier = output
 			id = languageCode = output.split('_')[0]
