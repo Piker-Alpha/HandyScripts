@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -73,6 +73,7 @@
 #		   - code improvements.
 #		   - uncommented two lines that made v4.4 a failure.
 #		   - catch languageCode not being defined.
+#		   - check path of plists and fall back to root volume when it is missing.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -123,7 +124,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.6"
+VERSION = "4.7"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -281,6 +282,15 @@ def getTargetVolume():
 	return targetVolumes[int(volumeNumber)]
 
 
+def getPath(targetVolume, targetPath):
+	filePath = os.path.join(targetVolume, targetPath)
+
+	if os.path.exists(filePath):
+		return filePath
+
+	return os.path.join("/", targetPath)
+
+
 def downloadDistributionFile(url, targetPath):
 	try:
 		req = urllib2.urlopen(url)
@@ -305,7 +315,8 @@ def downloadDistributionFile(url, targetPath):
 
 
 def getSystemVersionPlist(targetVolume, target):
-	systemVersionPlist = plistlib.readPlist(os.path.join(targetVolume, "System/Library/CoreServices/SystemVersion.plist"))
+	systemVersionPlist = plistlib.readPlist(getPath(targetVolume, "System/Library/CoreServices/SystemVersion.plist"))
+	
 	if target == None:
 		return systemVersionPlist
 	else:
@@ -324,9 +335,9 @@ def getSeedProgram(targetVolume):
 
 	try:
 		if systemVersionPlist['ProductVersion'] == '10.9':
-			seedEnrollmentPlist = plistlib.readPlist(os.path.join(targetVolume, "Library/Application Support/App Store/.SeedEnrollment.plist"))
+			seedEnrollmentPlist = plistlib.readPlist(getPath(targetVolume, "Library/Application Support/App Store/.SeedEnrollment.plist"))
 		else:
-			seedEnrollmentPlist = plistlib.readPlist(os.path.join(targetVolume, "Users/Shared/.SeedEnrollment.plist"))
+			seedEnrollmentPlist = plistlib.readPlist(getPath(targetVolume, "Users/Shared/.SeedEnrollment.plist"))
 	except IOError:
 		return 'None'
 
