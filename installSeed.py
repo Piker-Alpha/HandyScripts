@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -74,6 +74,8 @@
 #		   - uncommented two lines that made v4.4 a failure.
 #		   - catch languageCode not being defined.
 #		   - check path of plists and fall back to root volume when it is missing.
+#		   - fix index error.
+#		   - show product selection only when there are more than one.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -124,7 +126,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.7"
+VERSION = "4.8"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -523,7 +525,6 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 	packageCount = (len(data)/2)
 
 	while(index < (packageCount*2)):
-		item+=1
 		key = data[index]
 		product = data[index+1]
 		index+=2
@@ -548,6 +549,8 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 		else:
 			continue
 
+		item+=1
+
 		if packageCount > 1:
 			selectorText = "[ %s ] " % item
 			indent = '      - '
@@ -568,16 +571,21 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 
 	print ''
 	while True:
-		selection = raw_input("Select package to install [1-%s] " % packageCount)
-		if selection.isdigit():
-			number = int(selection)
-			if number > 0 and number <= packageCount:
-				number-=1
-				break
+		if item > 1:
+			selection = raw_input("Select package to install [1-%s] " % packageCount)
+
+			if selection.isdigit():
+				number = int(selection)
+				if number > 0 and number <= packageCount:
+					number-=1
+					break
+				else:
+					sys.stdout.write("\033[F\033[K")
 			else:
 				sys.stdout.write("\033[F\033[K")
 		else:
-			sys.stdout.write("\033[F\033[K")
+			number = 0
+			break
 
 	seedBuildID = buildIDs[number]
 
