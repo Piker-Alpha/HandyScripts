@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.8 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 4.9 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -51,7 +51,7 @@
 #		   - run pkgutil without sudo.
 #		   - add the regular update CatalogURL.
 #		   - read SystemVersion.plist from target volume.
-#		   - read seed enrollment plist from target volume.
+#		   - read seed enrolment plist from target volume.
 #		   - renamed targetPath to sourcePath.
 #		   - removed two print statements (reducing the output).
 #		   - improved text output where it counts.
@@ -76,6 +76,7 @@
 #		   - check path of plists and fall back to root volume when it is missing.
 #		   - fix index error.
 #		   - show product selection only when there are more than one.
+#		   - check (for) seed enrolment program added.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -117,21 +118,35 @@ import urllib2
 import platform
 import getopt
 import signal
+import objc
 
 from os.path import basename
-from Foundation import NSLocale
+from Foundation import NSLocale, NSBundle, NSClassFromString
 from multiprocessing import Pool
 from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.8"
+VERSION = "4.9"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
 
 os.environ['__OS_INSTALL'] = "1"
+
+SeedingBundle = NSBundle.bundleWithPath_('/System/Library/PrivateFrameworks/Seeding.framework')
+
+functions = [
+			 ('_stringForSeedProgram_', '@I'),
+			 ('_setSeedProgramPref', '@I'),
+			 ('_setCatalogForSeedProgram', '@I'),
+			 ('_setHelpFeedbackMenuEnabled', '@I'),
+			 ('_setSeedOptOutUIDisabled', '@I'),
+			 ('_createFeedbackAssistantSymlink','@'),
+			 ]
+
+objc.loadBundleFunctions(SeedingBundle, globals(), functions)
 
 #
 # Setup seed program data.
@@ -194,6 +209,40 @@ tmpDirectory="tmp"
 # Name of target installer package.
 #
 installerPackage="installer.pkg"
+
+def enrollInSeedProgram(targetVolume, targetProductVersion):
+	print "\n[ 1 ] Customer Seed"
+	print "[ 2 ] Developer Seed"
+	print "[ 3 ] Public Beta Seed\n"
+	
+	while True:
+		try:
+			program = int(raw_input("Select program: "))
+			if program < 1 or program > 3:
+				sys.stdout.write("\033[F\033[K")
+			else:
+				break;
+		except:
+			sys.stdout.write("\033[F\033[K")
+
+	seedProgramManager = NSClassFromString('SDSeedProgramManager')
+	seedProgram = seedProgramManager._stringForSeedProgram_(program)
+	print "Seeding: Enrolling in seed program: %s" % seedProgram
+	seedProgramManager._setSeedProgramPref_(program)
+		
+	if seedProgramManager._setCatalogForSeedProgram_(program) != 0:
+		seedProgramManager._setHelpFeedbackMenuEnabled_((program | 2) == 3)
+		seedProgramManager._setSeedOptOutUIDisabled_(0)
+			
+		if ((program | 2) == 3):
+			seedProgramManager._createFeedbackAssistantSymlink()
+
+	if targetProductVersion == '10.9':
+		plist = getPath(targetVolume, "Library/Application Support/App Store/.SeedEnrollment.plist")
+	else:
+		plist = getPath(targetVolume, "Users/Shared/.SeedEnrollment.plist")
+
+	plistlib.writePlist(dict(SeedProgram=seedProgram), plist)
 
 
 def getOSVersion():
@@ -334,22 +383,29 @@ def getSeedProgram(targetVolume):
 	systemVersionPlist = getSystemVersionPlist(targetVolume, None)
 	currentBuildID = systemVersionPlist['ProductBuildVersion']
 	print "Currently running on macOS %s %s Build (%s) " % (name, version, currentBuildID)
+	targetProductVersion = systemVersionPlist['ProductVersion']
 
 	try:
-		if systemVersionPlist['ProductVersion'] == '10.9':
+		if targetProductVersion == '10.9':
 			seedEnrollmentPlist = plistlib.readPlist(getPath(targetVolume, "Library/Application Support/App Store/.SeedEnrollment.plist"))
 		else:
 			seedEnrollmentPlist = plistlib.readPlist(getPath(targetVolume, "Users/Shared/.SeedEnrollment.plist"))
 	except IOError:
-		return 'None'
+		return (None, targetProductVersion)
 
 	seedProgram = seedEnrollmentPlist['SeedProgram']
-	print 'Seed Program Enrollment: ' + seedProgram
-	return seedProgram
+	print 'Seed Program Enrolment: ' + seedProgram
+	return (seedProgram, targetProductVersion)
 
 
 def getCatalogData(targetVolume):
-	seedProgram = getSeedProgram(targetVolume)
+	seedProgram, targetProductVersion = getSeedProgram(targetVolume)
+
+	if seedProgram == None:
+		print "\nERROR: No .SeedEnrollment.plist found. Initialising ..."
+		enrollInSeedProgram(targetVolume, targetProductVersion)
+		seedProgram, targetProductVersion = getSeedProgram(targetVolume)
+
 	catalog = seedProgramData.get(seedProgram, seedProgramData['Regular'])
 	catalogURL = "https://swscan.apple.com/content/catalogs/others/" + catalog
 	try:
