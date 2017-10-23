@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 4.9 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 5.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -77,6 +77,7 @@
 #		   - fix index error.
 #		   - show product selection only when there are more than one.
 #		   - check (for) seed enrolment program added.
+#		   - show buildID and not a part of the filename.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -128,7 +129,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "4.9"
+VERSION = "5.0"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -511,12 +512,13 @@ def getBuildAndVersion(distributionFile):
 					pass
 		return (version, build)
 	else:
-		element = root.find('pkg-ref')
-		id = element.get('id')
+		for element in root.findall('pkg-ref'):
+			id = element.get('id')
+			parts = id.split('.')
 
-		if not id == None:
-			build = id.split('.')[-1]
-			return (version, build)
+			if len(parts) > 4:
+				build = parts[-1]
+				return (version, build)
 
 	return ('Unknown', 'Unknown')
 
@@ -611,7 +613,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			selectorText = "[ %s ] " % item
 			indent = '      - '
 
-		print "\n%sFound update for macOS %s (%s) with key: %s" % (selectorText, seedVersion, seedBuildID , key)
+		print "\n%sFound update for macOS %s (%s) with key: %s" % (selectorText, seedVersion, seedBuildID, key)
 
 		if currentBuildID == seedBuildID:
 			print "%swarning: seed build version is the same as macOS on this Mac!" % indent
