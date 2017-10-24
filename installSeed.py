@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 5.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 5.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -78,6 +78,7 @@
 #		   - show product selection only when there are more than one.
 #		   - check (for) seed enrolment program added.
 #		   - show buildID and not a part of the filename.
+#		   - fix script execution from efiver.py
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -129,7 +130,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "5.0"
+VERSION = "5.1"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -489,7 +490,7 @@ def isBetaSeed(distributionFile):
 	return False
 
 
-def getBuildAndVersion(distributionFile):
+def getBuildAndVersion(distributionFile, targetPackageName, unpackFolder):
 	build  = 0
 	version = 0
 	tree = ElementTree.parse(distributionFile)
@@ -516,7 +517,11 @@ def getBuildAndVersion(distributionFile):
 			id = element.get('id')
 			parts = id.split('.')
 
-			if len(parts) > 4:
+			if targetPackageName == "FirmwareUpdate.pkg" and unpackFolder != "":
+				if parts[-1] == "FirmwareUpdate":
+					build = parts[-1]
+					return (version, build)
+			elif len(parts) > 4:
 				build = parts[-1]
 				return (version, build)
 
@@ -597,7 +602,7 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 			distributionURL = distributions.get(languageSelector)
 			distributionFile = downloadDistributionFile(distributionURL, targetPath)
 
-		seedVersion, seedBuildID = getBuildAndVersion(distributionFile)
+		seedVersion, seedBuildID = getBuildAndVersion(distributionFile, targetPackageName, unpackFolder)
 
 		if productType == 'update' and seedVersion == 0:
 			seedVersion = macOSVersion
