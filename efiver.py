@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -31,6 +31,7 @@
 #		   - added a couple of assumed Apple models as modelX,Y.
 #		   - added a couple of new Apple board-id's.
 #		   - there is no installer for 10.13.1 so for now; fall back to 10.13
+#		   - script will now stop/abort when Ctrl+C is pressed.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -68,6 +69,7 @@ import glob
 import sys
 import subprocess
 import binascii
+import signal
 import objc
 import stat
 import urllib2
@@ -90,7 +92,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.4
+VERSION = 2.5
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -570,4 +572,6 @@ def main():
 
 
 if __name__ == "__main__":
+	# Allows installSeed.py to exit quickly when pressing Ctrl+C.
+	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	main()
