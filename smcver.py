@@ -2,7 +2,7 @@
 #
 # Script (SMCver.py) to show the SMC version info (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.3 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -14,6 +14,7 @@
 #		   - match output style with that of EFIver.py
 #		   - no longer using ServerInformation.framework
 #		   - fix incompatible issues with older versions of macOS.
+#		   - script will now stop/abort when Ctrl+C is pressed.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -52,6 +53,7 @@ import objc
 import json
 import sys
 import subprocess
+import signal
 
 from os.path import basename
 from Foundation import NSBundle
@@ -68,7 +70,7 @@ functions = [
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
 
-VERSION = 1.2
+VERSION = 1.3
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 JSONS_PATH = "Scripts/Tools/SMCJSONs/*.json"
@@ -275,4 +277,6 @@ def main():
 
 
 if __name__ == "__main__":
+	# Allows installSeed.py to exit quickly when pressing Ctrl+C.
+	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	main()
