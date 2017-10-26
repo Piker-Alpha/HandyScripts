@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 5.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 5.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -79,6 +79,8 @@
 #		   - check (for) seed enrolment program added.
 #		   - show buildID and not a part of the filename.
 #		   - fix script execution from efiver.py
+#		   - update key and targetPath in getPackages().
+#		   - save files in the directory with the selected key.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -130,7 +132,7 @@ from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
 
-VERSION = "5.1"
+VERSION = "5.2"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -662,6 +664,10 @@ def getPackages(productType, macOSVersion, targetPackageName, targetVolume, unpa
 	if askForConfirmation == True:
 		confirmWithText(confirmationText, True)
 
+	# update key / use key from the selected item.
+	key = data[(number*2)]
+	# update targetPath / use path from the selected item.
+	targetPath = os.path.join(targetVolume, tmpDirectory, key)
 	product = data[((number*2)+1)]
 	packages = product['Packages']
 
