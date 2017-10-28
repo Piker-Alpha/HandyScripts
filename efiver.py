@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -32,6 +32,7 @@
 #		   - added a couple of new Apple board-id's.
 #		   - there is no installer for 10.13.1 so for now; fall back to 10.13
 #		   - script will now stop/abort when Ctrl+C is pressed.
+#		   - added support for the -m argument (selects target macOS version).
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -75,6 +76,7 @@ import stat
 import urllib2
 import struct
 import shutil
+import argparse
 #import uuid
 
 from os.path import basename
@@ -92,7 +94,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.5
+VERSION = 2.6
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -506,13 +508,22 @@ def copyFirmwareUpdates():
 		pass
 
 
-def main():
+def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
 
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-m', dest='macOSVersion')
+	args = parser.parse_args()
+	
+	if args.macOSVersion == None:
+		macOSVersion = "10.13"
+	else:
+		macOSVersion = args.macOSVersion
+	
 	if not os.path.exists(FIRMWARE_UPDATE_PATH):
-		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_UPDATE_PATH, '10.13')
+		launchInstallSeed('update', 'FirmwareUpdate.pkg', FIRMWARE_UPDATE_PATH, macOSVersion)
 	if not os.path.exists(TMP_IA_PATH):
-		launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH, '10.13')
+		launchInstallSeed('install', 'InstallAssistantAuto.pkg', TMP_IA_PATH, macOSVersion)
 	if extractPayloadToDirectory() == True:
 		copyFirmwareUpdates()
 
@@ -574,4 +585,4 @@ def main():
 if __name__ == "__main__":
 	# Allows installSeed.py to exit quickly when pressing Ctrl+C.
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
-	main()
+	main(sys.argv[1:])
