@@ -2,7 +2,7 @@
 #
 # Script (SMCver.py) to show the SMC version info (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.3 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -15,6 +15,7 @@
 #		   - no longer using ServerInformation.framework
 #		   - fix incompatible issues with older versions of macOS.
 #		   - script will now stop/abort when Ctrl+C is pressed.
+#		   - update model information.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -70,7 +71,7 @@ functions = [
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
 
-VERSION = 1.3
+VERSION = 1.4
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 JSONS_PATH = "Scripts/Tools/SMCJSONs/*.json"
@@ -79,6 +80,7 @@ boardIDModelIDs = [
  ["Mac-F22C8AC8", "MacBook6,1"],
  ["Mac-F22C89C8", "MacBook7,1"],
  ["Mac-BE0E8AC46FE800CC", "MacBook8,1"],
+ ["Mac-F305150B0C7DEEEF", "MacBook8,x"],
  ["Mac-9AE82516C7C6B903", "MacBook9,1"],
  ["Mac-EE2EBD4B90B839A8", "MacBook10,1"],
  ["Mac-F22589C8", "MacBookPro6,1"],
@@ -92,6 +94,7 @@ boardIDModelIDs = [
  ["Mac-C3EC7CD22292981F", "MacBookPro10,1"],
  ["Mac-AFD8A9D944EA4843", "MacBookPro10,2"],
  ["Mac-189A3D4F975D5FFC", "MacBookPro11,1"],
+ ["Mac-D1FF70AF6D8C849A", "MacBookPro11,x"],
  ["Mac-3CBD00234E554E41", "MacBookPro11,2"],
  ["Mac-2BD1B31983FE1663", "MacBookPro11,3"],
  ["Mac-06F11FD93F0323C5", "MacBookPro11,4"],
@@ -99,6 +102,7 @@ boardIDModelIDs = [
  ["Mac-E43C1C25D4880AD6", "MacBookPro12,1"],
  ["Mac-473D31EABEB93F9B", "MacBookPro13,1"],
  ["Mac-66E35819EE2D0D05", "MacBookPro13,2"],
+ ["Mac-1BDAB09B689867E2", "MacBookPro13,x"],
  ["Mac-A5C67F76ED83108C", "MacBookPro13,3"],
  ["Mac-B4831CEBD52A0C4C","MacBookPro14,1"],
  ["Mac-CAD6701F7CEA0921","MacBookPro14,2"],
@@ -146,6 +150,10 @@ boardIDModelIDs = [
  ["Mac-F221BEC8", "MacPro4,1"],
  ["Mac-F221DCC8", "MacPro5,1"],
  ["Mac-F60DEB81FF30ACF6", "MacPro6,1"]
+ ["Mac-7BA5B2D9E42DDD94", "iMacPro1,1"],
+ ["Mac-CF21D135A7D34AA6","Unknown"],
+ ["Mac-112B0A653D3AAB9C","Unknown"],
+ ["Mac-90BE64C3CB5A9AEB","Unknown"]
 ]
 
 class attrdict(dict):
