@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 2.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 2.7 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -33,6 +33,8 @@
 #		   - there is no installer for 10.13.1 so for now; fall back to 10.13
 #		   - script will now stop/abort when Ctrl+C is pressed.
 #		   - added support for the -m argument (selects target macOS version).
+#		   - added missing lines in getRawEFIVersion()
+#		   - workaround added for missing firmware updates (like iMacPro1,1).
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -94,7 +96,7 @@ functions = [
 
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-VERSION = 2.6
+VERSION = 2.7
 EFIUPDATER = "/usr/libexec/efiupdater"
 INSTALLSEED = "installSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -363,7 +365,9 @@ def getMyBoardID():
 
 
 def getRawEFIVersion():
-	IORegistryEntryCreateCFProperty(IORegistryEntryFromPath(0, "IODeviceTree:/rom"), "version", None, 0)
+	data = IORegistryEntryCreateCFProperty(IORegistryEntryFromPath(0, "IODeviceTree:/rom"), "version", None, 0)
+	if data and len(data):
+		return str(data).strip('\x00')
 
 
 def getEFIVersionsFromEFIUpdater():
@@ -371,14 +375,19 @@ def getEFIVersionsFromEFIUpdater():
 	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, err = proc.communicate()
 	lines = output.splitlines()
-
-	if len(lines) == 2:
+	lineCount = len(lines)
+	
+	if lineCount < 3:
 		rawString = "Raw EFI Version string: %s" % getRawEFIVersion()
 		lines.insert(0, rawString)
 
 	rawVersion = lines[0].split(': ')[1].strip(' ')
 	currentVersion = lines[1].split(': ')[1].strip('[ ]')
-	updateVersion = lines[2].split(': ')[1].strip('[ ]')
+
+	if lineCount == 3:
+		updateVersion = lines[2].split(': ')[1].strip('[ ]')
+	else:
+		updateVersion = currentVersion
 
 	return (rawVersion, currentVersion, updateVersion)
 
