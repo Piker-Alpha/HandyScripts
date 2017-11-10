@@ -10,7 +10,7 @@
 # 			- Volume picker for seedEnrollement.plist added.
 # 			- Added sudo to 'open installer.pkg' to remedy authorisation problems.
 # 			- Fix for volume names with a space in it. Thanks to:
-# 			- https://pikeralpha.wordpress.com/2017/06/22/script-to-upgrade-macos-high-sierra-dp1-to-dp2/#comment-10216)
+# 			- https://pikeralpha.wordpress.com/2017/06/22/script-to-upgrade-macos-high-sierra-dp1-to-dp2/#comment-10216
 # 			- Add file checks so that we only download the missing files.
 #
 
