@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 3.0 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -36,6 +36,7 @@
 #		   - added missing lines in getRawEFIVersion()
 #		   - workaround added for missing firmware updates (like iMacPro1,1).
 #		   - improvements, cleanups and refactoring for v3.0
+#		   - now using downloadSeed.py instead of installSeed.py for downloads.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -69,8 +70,8 @@
 #
 
 import os
-import glob
 import sys
+import glob
 import platform
 import subprocess
 import binascii
@@ -90,9 +91,9 @@ else:
 from os.path import basename
 from subprocess import Popen, PIPE
 
-VERSION = 3.0
+VERSION = 3.1
 EFIUPDATER = "/usr/libexec/efiupdater"
-INSTALLSEED = "installSeed.py"
+DOWNLOADSEED = "downloadSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
 TMP_IA_PATH = "/tmp/InstallAssistantAuto"
 TMP_PAYLOAD = "/tmp/payload"
@@ -240,10 +241,7 @@ class InstallSeed:
 	@staticmethod
 	def getScript(scriptDirectory):
 		downloadpath = "https://raw.githubusercontent.com/Piker-Alpha/HandyScripts/master"
-		if platform.system() == "Darwin":
-			URL = os.path.join(downloadpath, "installSeed.py")
-		else:
-			URL = os.path.join(downloadpath, "downloadSeed.py")
+		URL = os.path.join(downloadpath, DOWNLOADSEED)
 		try:
 			req = urlopen(URL)
 		except URLError:
@@ -271,7 +269,7 @@ class InstallSeed:
 	@staticmethod
 	def launchScript(action, targetPackage, unpackPath, macOSVersion):
 		scriptDirectory = os.path.dirname(os.path.abspath(__file__))
-		helperScript = os.path.join(scriptDirectory, INSTALLSEED)
+		helperScript = os.path.join(scriptDirectory, DOWNLOADSEED)
 		if not os.path.exists(helperScript):
 			InstallSeed.getScript(scriptDirectory)
 		#
@@ -543,9 +541,9 @@ def main(argv):
 	if Payload.extractToDirectory(tmpDirectory) == True:
 		Payload.copyFirmwareUpdates(tmpDirectory)
 
-	print '---------------------------------------------------------------------------'
-	print '         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % VERSION
-	print '---------------------------------------------------------------------------'
+	print "---------------------------------------------------------------------------"
+	print "         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION
+	print "---------------------------------------------------------------------------"
 
 	linePrinted = True
 	warnAboutEFIVersion = False
