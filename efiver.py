@@ -357,7 +357,7 @@ class Payload:
 		try:
 			shutil.rmtree(TMP_PAYLOAD)
 			shutil.rmtree(TMP_IA_PATH)
-			shutil.rmtree(FIRMWARE_UPDATE_PATH)
+			#shutil.rmtree(FIRMWARE_UPDATE_PATH)
 		except OSError:
 			pass
 
