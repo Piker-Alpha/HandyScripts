@@ -3,7 +3,7 @@
 #
 # Script (efiver.py) to show the EFI ROM version (extracted from FirmwareUpdate.pkg).
 #
-# Version 3.1 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 3.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -37,6 +37,7 @@
 #		   - workaround added for missing firmware updates (like iMacPro1,1).
 #		   - improvements, cleanups and refactoring for v3.0
 #		   - now using downloadSeed.py instead of installSeed.py for downloads.
+#		   - Python 3 compatibility changes.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -70,13 +71,13 @@
 #
 
 import os
+import io
 import sys
 import glob
 import platform
 import subprocess
 import binascii
 import signal
-import objc
 import stat
 import struct
 import shutil
@@ -86,12 +87,12 @@ import tempfile
 if sys.version_info[0] == 2:
 	from urllib2 import urlopen, URLError
 else:
-	from urllib import urlopen, URLError
+	from urllib.request import urlopen, URLError
 
 from os.path import basename
 from subprocess import Popen, PIPE
 
-VERSION = 3.1
+VERSION = 3.2
 EFIUPDATER = "/usr/libexec/efiupdater"
 DOWNLOADSEED = "downloadSeed.py"
 FIRMWARE_UPDATE_PATH = "/tmp/FirmwareUpdate"
@@ -189,33 +190,35 @@ boardIDModelIDs = [
 ]
 
 class MacOS:
-	from Foundation import NSBundle
+	def __init__(self):
+		try:
+			import objc
+			from Foundation import NSBundle
+		except ImportError:
+			pass
 
-	IOKitBundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
+		IOKitBundle = NSBundle.bundleWithIdentifier_('com.apple.framework.IOKit')
 
-	functions = [
-				 ("IOServiceGetMatchingService", b"II@"),
-				 ("IOServiceMatching", b"@*"),
-				 ("IORegistryEntryFromPath", b"II*"),
-				 ("IORegistryEntryCreateCFProperty", b"@I@@I")
-				 ]
+		functions = [
+					 ("IOServiceGetMatchingService", b"II@"),
+					 ("IOServiceMatching", b"@*"),
+					 ("IORegistryEntryFromPath", b"II*"),
+					 ("IORegistryEntryCreateCFProperty", b"@I@@I")
+					 ]
 
-	objc.loadBundleFunctions(IOKitBundle, globals(), functions)
+		objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
-	@staticmethod
-	def getMyBoardID():
+	def getMyBoardID(self):
 		data = IORegistryEntryCreateCFProperty(IOServiceGetMatchingService(0, IOServiceMatching("IOPlatformExpertDevice")), "board-id", None, 0)
 		if data and len(data):
 			return str(data).strip('\x00')
 
-	@staticmethod
-	def getRawEFIVersion():
+	def getRawEFIVersion(self):
 		data = IORegistryEntryCreateCFProperty(IORegistryEntryFromPath(0, "IODeviceTree:/rom"), "version", None, 0)
 		if data and len(data):
 			return str(data).strip('\x00')
 
-	@staticmethod
-	def getEFIVersionsFromEFIUpdater():
+	def getEFIVersionsFromEFIUpdater(self):
 		cmd = [EFIUPDATER]
 		proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		output, err = proc.communicate()
@@ -223,7 +226,7 @@ class MacOS:
 		lineCount = len(lines)
 	
 		if lineCount < 3:
-			rawString = "Raw EFI Version string: %s" % MacOS.getRawEFIVersion()
+			rawString = "Raw EFI Version string: %s" % MacOS.getRawEFIVersion(self)
 			lines.insert(0, rawString)
 	
 		rawVersion = lines[0].split(': ')[1].strip(' ')
@@ -254,8 +257,8 @@ class InstallSeed:
 		if os.path.exists(targetFile):
 			os.remove(targetFile)
 
-		with open(targetFile, 'w') as f:
-			print '\nDownloading: %s [%s bytes] ...' % (filename, filesize)
+		with io.open(targetFile, 'w') as f:
+			print("\nDownloading: %s [%s bytes] ..." % (filename, filesize))
 			while True:
 				chunk = req.read(1024)
 				if not chunk:
@@ -285,19 +288,19 @@ class InstallSeed:
 
 		try:
 			retcode = subprocess.call(cmd)
-		except OSError, error:
+		except error:
 			print >> sys.stderr, ("ERROR: launch of installSeed.py failed with %s." % error)
 
 
 class Payload:
 	@staticmethod
 	def convertToZX(payloadPath, tmpDirectory):
-		with open(payloadPath, 'rb') as sourceFile:
+		with io.open(payloadPath, 'rb') as sourceFile:
 			# Payload Binary ZX magic found?
 			if sourceFile.read(4) != 'pbzx':
 				return False
 			compressedPayloadFile = os.path.join(tmpDirectory, "payload.zx")
-			with open(compressedPayloadFile, 'wb') as outFile:
+			with io.open(compressedPayloadFile, 'wb') as outFile:
 				sourceFile.seek(16, 1)
 				data64 = sourceFile.read(8)
 				blockSize = struct.unpack('>Q', data64)[0]
@@ -307,7 +310,7 @@ class Payload:
 				blockSize = struct.unpack('>Q', data64)[0]
 				outFile.write(sourceFile.read(blockSize))
 			# check the footer of the created file.
-			with open(compressedPayloadFile, 'rb') as checkFile:
+			with io.open(compressedPayloadFile, 'rb') as checkFile:
 				checkFile.seek(-2, 2)
 				if checkFile.read(2) == 'YZ':
 					return True
@@ -333,7 +336,7 @@ class Payload:
 			except OSError:
 				pass
 			return True
-		except OSError, error:
+		except error:
 			print >> sys.stderr, ("ERROR: cpio -iF %s --quiet failed with %s." % (compressedPayloadFile, error))
 			sys.exit(0)
 		
@@ -354,6 +357,7 @@ class Payload:
 		try:
 			shutil.rmtree(TMP_PAYLOAD)
 			shutil.rmtree(TMP_IA_PATH)
+			shutil.rmtree(FIRMWARE_UPDATE_PATH)
 		except OSError:
 			pass
 
@@ -374,20 +378,26 @@ class EFI:
 		f.seek(position, 0)
 	
 		if position > 4096:
-			while not f.read(8) == "$IBIOSI$":
+			# search for "$IBIOSI$"
+			while not f.read(8) == b'\x24\x49\x42\x49\x4F\x53\x49\x24':
 				position-=4
-				f.seek(position)
+				f.seek(position) #, 0)
 		else:
-			while not f.read(8) == "$IBIOSI$":
+			# search for "$IBIOSI$"
+			while not f.read(8) == b'\x24\x49\x42\x49\x4F\x53\x49\x24':
 				position+=4
-				f.seek(position)
+				f.seek(position) #, 0)
 
-		return f.read(0x41)
+		# f.read(0x41) = b' \x00 \x00 \x00I\x00M\x001\x000\x001\x00.\x008\x008\x00Z\x00.\x000\x000\x00C\x00F\x00.\x00B\x000\x000\x00.\x001\x007\x000\x008\x000\x008\x000\x001\x003\x003\x00\x00'
+		# f.read(0x41).decode('utf-8') = IM101.88Z.00CF.B00.1708080133
+		return f.read(0x41).decode('utf-8')
 
 	@staticmethod
 	def getData(f, position):
 		biosID = EFI.getVersion(f, position)
-		model = biosID.split('.')[0]
+		# remove all spaces and '\x00'
+		model = ''.join(filter(lambda x: x.isalnum(), biosID.split('.')[0]))
+		# model is now really: "IM101.88Z.00CF.B00.1708080133"
 		modelID = Model.getID(model)
 		boardID = BoardID.getByModelID(modelID)
 		return (boardID, modelID, biosID)
@@ -406,11 +416,12 @@ class BoardID:
 			# skip eight bytes (the first time this is the structure, and after that a board-id).
 			position+=8
 			f.seek(position, 0)
-			boardID = binascii.hexlify(f.read(8)).upper()
-			if boardID == "FFFFFFFFFFFFFFFF":
+			boardID = f.read(8)
+			# check for unused board-id aka "FFFFFFFFFFFFFFFF"
+			if boardID == b'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF':
 				break
 			else:
-				boardIDs.append("Mac-%s" % boardID)
+				boardIDs.append("Mac-%s" % binascii.hexlify(boardID).decode('utf-8').upper())
 			#
 			if trailingBytes == True:
 				position+=2
@@ -428,24 +439,23 @@ class BoardID:
 class Model:
 	@staticmethod
 	def getID(id):
-		did = id.decode('utf-16')
-		lid = did.lstrip()
-		number = ''.join(filter(lambda x: x.isdigit(), did))
+		# make 'number' a digit only value.
+		number = ''.join(filter(lambda x: x.isdigit(), id))
 		x = len(number) - 1
 
-		if lid.startswith('IM'):
+		if id.startswith('IM'):
 			return 'iMac%s,%s' % (number[:x], number[-1:])
-		if lid.startswith('IMP'):
+		if id.startswith('IMP'):
 			return 'iMacPro%s,%s' % (number[:x], number[-1:])
-		elif lid.startswith('MBP'):
+		elif id.startswith('MBP'):
 			return 'MacBookPro%s,%s' % (number[:x], number[-1:])
-		elif lid.startswith('MBA'):
+		elif id.startswith('MBA'):
 			return 'MacBookAir%s,%s' % (number[:x], number[-1:])
-		elif lid.startswith('MB'):
+		elif id.startswith('MB'):
 			return 'MacBook%s,%s' % (number[:x], number[-1:])
-		elif lid.startswith('MM'):
+		elif id.startswith('MM'):
 			return 'Macmini%s,%s' % (number[:x], number[-1:])
-		elif lid.startswith('MP'):
+		elif id.startswith('MP'):
 			return 'MacPro%s,%s' % (number[:x], number[-1:])
 	
 		return 'Unknown'
@@ -474,7 +484,7 @@ class GUID:
 		if filename.startswith('MP51'):
 			position = 0
 			# Check for Apple UUID(C3E36D09-8294-4B97-A857-D5288FE33E28)
-			while not binascii.hexlify(f.read(16)) == "096de3c39482974ba857d5288fe33e28":
+			while not binascii.hexlify(f.read(16)) == b'096de3c39482974ba857d5288fe33e28':
 				if position < (filesize-8):
 					position+=4
 					f.seek(position, 0)
@@ -482,38 +492,38 @@ class GUID:
 			position = 0x98
 			f.seek(position, 0)
 			# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-			if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+			if binascii.hexlify(f.read(16)) == b'4a251f7857c4135d92751bf5d56e0724':
 				return position
 
 			position = 0x1200
 			f.seek(position, 0)
 			# Check for Apple UUID(11380FF9-CFBF-5CD5-997E-83FD089569F0)
-			if binascii.hexlify(f.read(16)) == "f90f3811bfcfd55c997e83fd089569f0":
+			if binascii.hexlify(f.read(16)) == b'f90f3811bfcfd55c997e83fd089569f0':
 				return position
 
 			position = 0x1048
 			f.seek(position, 0)
 			# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-			if binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+			if binascii.hexlify(f.read(16)) == b'4a251f7857c4135d92751bf5d56e0724':
 				return position
 
 			position = (filesize-8)
 			f.seek(position, 0)
 			# Check for Apple UUID(781F254A-C457-5D13-9275-1BF5D56E0724)
-			while not binascii.hexlify(f.read(16)) == "4a251f7857c4135d92751bf5d56e0724":
+			while not binascii.hexlify(f.read(16)) == b'4a251f7857c4135d92751bf5d56e0724':
 				if position > 8:
 					position-=4
 					f.seek(position, 0)
 
-		#print 'GUID found @ byte 0x%x' % position
+		#print("GUID found @ byte 0x%x" % position)
 		return position
 
 
 def showSystemData(linePrinted, boardID, modelID, biosID):
 	if linePrinted == False:
-		print '---------------------------------------------------------------------------'
-	print '> %20s | %14s |%s <' % (boardID, modelID, biosID)
-	print '---------------------------------------------------------------------------'
+		print("---------------------------------------------------------------------------")
+	print("> %-20s | %-14s |%s <" % (boardID, modelID, biosID))
+	print("---------------------------------------------------------------------------")
 	return True
 
 
@@ -541,16 +551,17 @@ def main(argv):
 	if Payload.extractToDirectory(tmpDirectory) == True:
 		Payload.copyFirmwareUpdates(tmpDirectory)
 
-	print "---------------------------------------------------------------------------"
-	print "         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION
-	print "---------------------------------------------------------------------------"
+	print("---------------------------------------------------------------------------")
+	print("         EFIver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION)
+	print("---------------------------------------------------------------------------")
 
 	linePrinted = True
 	warnAboutEFIVersion = False
 
 	if platform.system() == "Darwin":
-		myBoardID = MacOS.getMyBoardID()
-		rawVersion, currentVersion, updateVersion = MacOS.getEFIVersionsFromEFIUpdater()
+		_MacOS = MacOS()
+		myBoardID = _MacOS.getMyBoardID()
+		rawVersion, currentVersion, updateVersion = _MacOS.getEFIVersionsFromEFIUpdater()
 	else:
 		myBoardID = "Mac-XXXXXXXXXXXXXXXX"
 		rawVersion, currentVersion, updateVersion = ("Raw EFI Version string: UNSPEC.00Z.0000.B00.0000000000", 0, 0)
@@ -561,7 +572,7 @@ def main(argv):
 		targetFiles = os.path.join(FIRMWARE_UPDATE_PATH, "Scripts/Tools/EFIPayloads", fileType)
 		firmwareFiles = glob.glob(targetFiles)
 		for firmwareFile in firmwareFiles:
-			with open(firmwareFile, 'rb') as f:
+			with io.open(firmwareFile, 'rb') as f:
 				position = 0xb0
 				filename = basename(firmwareFile)
 				if GUID.shouldPerformCheck(filename):
@@ -583,7 +594,7 @@ def main(argv):
 							if EFI.shouldWarnAboutUpdate(rawVersion, biosID):
 								warnAboutEFIVersion = True
 						else:
-							print '  %20s | %14s |%s' % (boardID, modelID, biosID)
+							print("  %-20s | %-14s |%s" % (boardID, modelID, biosID))
 							linePrinted = False
 				else:
 					boardID, modelID, biosID = EFI.getData(f, 0xb0)
@@ -592,14 +603,14 @@ def main(argv):
 						if EFI.shouldWarnAboutUpdate(rawVersion, biosID):
 							warnAboutEFIVersion = True
 					else:
-						print '  %20s | %14s |%s' % (boardID, modelID, biosID)
+						print("  %-20s | %-14s |%s" % (boardID, modelID, biosID))
 						linePrinted = False
 
 	if linePrinted == False:
-		print '---------------------------------------------------------------------------'
+		print("---------------------------------------------------------------------------")
 	if warnAboutEFIVersion:
-		print '> WARNING: Your EFI ROM %21s is not up-to-date!! <' % rawVersion
-		print '---------------------------------------------------------------------------'
+		print("> WARNING: Your EFI ROM %21s is not up-to-date!! <" % rawVersion)
+		print("---------------------------------------------------------------------------")
 
 
 if __name__ == "__main__":
