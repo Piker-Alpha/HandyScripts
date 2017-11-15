@@ -2,7 +2,7 @@
 #
 # Script (SMCver.py) to show the SMC version info (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.5 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -16,6 +16,7 @@
 #		   - fix incompatible issues with older versions of macOS.
 #		   - script will now stop/abort when Ctrl+C is pressed.
 #		   - update model information.
+#		   - fixed a typo: missing comma.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -71,7 +72,7 @@ functions = [
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
 
-VERSION = 1.4
+VERSION = 1.5
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 JSONS_PATH = "Scripts/Tools/SMCJSONs/*.json"
@@ -149,7 +150,7 @@ boardIDModelIDs = [
  ["Mac-35C5E08120C7EEAF", "Macmini7,1"],
  ["Mac-F221BEC8", "MacPro4,1"],
  ["Mac-F221DCC8", "MacPro5,1"],
- ["Mac-F60DEB81FF30ACF6", "MacPro6,1"]
+ ["Mac-F60DEB81FF30ACF6", "MacPro6,1"],
  ["Mac-7BA5B2D9E42DDD94", "iMacPro1,1"],
  ["Mac-CF21D135A7D34AA6","Unknown"],
  ["Mac-112B0A653D3AAB9C","Unknown"],
