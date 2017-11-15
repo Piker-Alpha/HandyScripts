@@ -2,7 +2,7 @@
 #
 # Script (SMCver.py) to show the SMC version info (extracted from FirmwareUpdate.pkg).
 #
-# Version 1.4 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 1.6 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - search scap files from 0xb0 onwards.
@@ -16,6 +16,8 @@
 #		   - fix incompatible issues with older versions of macOS.
 #		   - script will now stop/abort when Ctrl+C is pressed.
 #		   - update model information.
+#		   - fixed a typo: missing comma.
+#		   - use properly formatted print() statements.
 #
 # License:
 #		   -  BSD 3-Clause License
@@ -71,7 +73,7 @@ functions = [
 objc.loadBundleFunctions(IOKitBundle, globals(), functions)
 
 
-VERSION = 1.4
+VERSION = 1.6
 INSTALLSEED = "installSeed.py"
 FIRMWARE_PATH = "/tmp/FirmwareUpdate"
 JSONS_PATH = "Scripts/Tools/SMCJSONs/*.json"
@@ -149,7 +151,7 @@ boardIDModelIDs = [
  ["Mac-35C5E08120C7EEAF", "Macmini7,1"],
  ["Mac-F221BEC8", "MacPro4,1"],
  ["Mac-F221DCC8", "MacPro5,1"],
- ["Mac-F60DEB81FF30ACF6", "MacPro6,1"]
+ ["Mac-F60DEB81FF30ACF6", "MacPro6,1"],
  ["Mac-7BA5B2D9E42DDD94", "iMacPro1,1"],
  ["Mac-CF21D135A7D34AA6","Unknown"],
  ["Mac-112B0A653D3AAB9C","Unknown"],
@@ -166,7 +168,7 @@ def getInstallSeed(scriptDirectory):
 	try:
 		req = urllib2.urlopen(URL)
 	except urllib2.URLError:
-		print >> sys.stderr("\nERROR: opening of (%s) failed. Aborting ...\n" % URL)
+		sys.stderr.write("\nERROR: opening of (%s) failed. Aborting ...\n" % URL)
 	
 	filename = basename(URL)
 	filesize = req.info().getheader('Content-Length')
@@ -176,7 +178,7 @@ def getInstallSeed(scriptDirectory):
 		os.remove(targetFile)
 	
 	with open(targetFile, 'w') as f:
-		print '\nDownloading: %s [%s bytes] ...' % (filename, filesize)
+		print("\nDownloading: %s [%s bytes] ..." % (filename, filesize))
 		while True:
 			chunk = req.read(1024)
 			if not chunk:
@@ -207,7 +209,7 @@ def launchInstallSeed(unpackPath):
 	try:
 		retcode = subprocess.call(cmd)
 	except OSError, error:
-		print >> sys.stderr, ("ERROR: launch of installSeed.py failed with %s." % error)
+		sys.stderr.write("ERROR: launch of installSeed.py failed with %s." % error)
 
 
 def getJSONFiles(path):
@@ -232,9 +234,9 @@ def getMySMCVersion():
 
 def showSystemData(linePrinted, boardID, modelID, smcVersion):
 	if linePrinted == False:
-		print '-----------------------------------------------------------'
-	print '> %20s | %16s |  v%-11s <' % (boardID, modelID, smcVersion)
-	print '-----------------------------------------------------------'
+		print("-----------------------------------------------------------")
+	print("> %20s | %16s |  v%-11s <" % (boardID, modelID, smcVersion))
+	print("-----------------------------------------------------------")
 	return True
 
 
@@ -251,9 +253,9 @@ def main():
 	if not os.path.exists(FIRMWARE_PATH):
 		launchInstallSeed(FIRMWARE_PATH)
 
-	print '-----------------------------------------------------------'
-	print '  SMCver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha' % VERSION
-	print '-----------------------------------------------------------'
+	print("-----------------------------------------------------------")
+	print("  SMCver.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION)
+	print("-----------------------------------------------------------")
 
 	linePrinted = True
 	warnAboutSMCVersion = False
@@ -274,14 +276,14 @@ def main():
 				if shouldWarnAboutUpdate(mySMCVersion, smcData['smc-version']):
 					warnAboutSMCVersion = True
 			else:
-				print '  %20s | %16s |  v%-11s' % (boardID, modelID, smcData['smc-version'])
+				print("  %20s | %16s |  v%-11s" % (boardID, modelID, smcData['smc-version']))
 				linePrinted = False
 
 	if linePrinted == False:
-		print '-----------------------------------------------------------'
+		print("-----------------------------------------------------------")
 	if warnAboutSMCVersion:
-		print '> WARNING: Your SMC version (%8s) is not up-to-date! <' % mySMCVersion
-		print '-----------------------------------------------------------'
+		print("> WARNING: Your SMC version (%8s) is not up-to-date! <" % mySMCVersion)
+		print("-----------------------------------------------------------")
 
 
 if __name__ == "__main__":
