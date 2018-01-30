@@ -3,7 +3,7 @@
 #
 # Script (installSeed.py) to get the latest seed package.
 #
-# Version 5.2 - Copyright (c) 2017 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
+# Version 5.3 - Copyright (c) 2017-2018 by Dr. Pike R. Alpha (PikeRAlpha@yahoo.com)
 #
 # Updates:
 #		   - comments added
@@ -81,11 +81,12 @@
 #		   - fix script execution from efiver.py
 #		   - update key and targetPath in getPackages().
 #		   - save files in the directory with the selected key.
+#		   - skip partition selection if there is only one.
 #
 # License:
 #		   -  BSD 3-Clause License
 #
-# Copyright (c) 2017 by Dr. Pike R. Alpha, All Rights Reserved.
+# Copyright (c) 2017-2018 by Dr. Pike R. Alpha, All Rights Reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -131,8 +132,9 @@ from xml.etree import ElementTree
 from numbers import Number
 from subprocess import Popen, PIPE
 from ctypes import CDLL, c_uint, byref
+from datetime import datetime
 
-VERSION = "5.2"
+VERSION = "5.3"
 DISKUTIL = "/usr/sbin/diskutil"
 IATOOL = "Contents/MacOS/InstallAssistant"
 STARTOSINSTALL = "Contents/Resources/startosinstall"
@@ -316,23 +318,27 @@ def selectLanguage(macOSVersion):
 def getTargetVolume():
 	index = 0
 	targetVolumes = glob.glob("/Volumes/*")
-	print "\nAvailable target volumes:\n"
 
-	for volume in targetVolumes:
-		print "[ %i ] %s" % (index, basename(volume))
-		index+=1
+	if len(targetVolumes) == 1:
+		volumeNumber = 0
+	else:
+		print "\nAvailable target volumes:\n"
 
-	print ''
+		for volume in targetVolumes:
+			print "[ %i ] %s" % (index, basename(volume))
+			index+=1
 
-	while True:
-		try:
-			volumeNumber = int(raw_input("Select a target volume: "))
-			if volumeNumber > (index-1):
+		print ''
+
+		while True:
+			try:
+				volumeNumber = int(raw_input("Select a target volume: "))
+				if volumeNumber > (index-1):
+					sys.stdout.write("\033[F\033[K")
+				else:
+					break;
+			except:
 				sys.stdout.write("\033[F\033[K")
-			else:
-				break;
-		except:
-			sys.stdout.write("\033[F\033[K")
 
 	return targetVolumes[int(volumeNumber)]
 
@@ -859,9 +865,10 @@ def showUsage(error, arg):
 
 def main(argv):
 	sys.stdout.write("\x1b[2J\x1b[H")
-	print "-----------------------------------------------------------"
-	print "installSeed.py v%s Copyright (c) 2017 by Dr. Pike R. Alpha" % VERSION
-	print "-----------------------------------------------------------"
+	YEAR = datetime.now().year
+	print "----------------------------------------------------------------"
+	print "installSeed.py v%s Copyright (c) 2017-%s by Dr. Pike R. Alpha" % (VERSION, YEAR)
+	print "----------------------------------------------------------------"
 	action = 'install'
 	target = '*'
 	volume = ''
@@ -869,7 +876,7 @@ def main(argv):
 	unpackFolder = ''
 	macOSVersion = getOSVersion()
 	languageSelector = selectLanguage(macOSVersion)
-	targetOSVersion = '10.13.1'
+	targetOSVersion = '10.13.3'
 
 	try:
 		opts, args = getopt.getopt(argv,"h:a:f:t:c:u:m:",["help","action","file","target","confirmation","unpack","mac"])
